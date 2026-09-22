@@ -29,7 +29,8 @@ export default function Login() {
     const result = await login(form.email, form.password)
     if (result.success) {
       toast.success('Welcome back!')
-      navigate(from, { replace: true })
+      const isAdmin = result.user?.role === 'admin'
+      navigate(isAdmin ? (from.startsWith('/admin') ? from : '/admin') : from, { replace: true })
     } else {
       toast.error(result.message)
     }

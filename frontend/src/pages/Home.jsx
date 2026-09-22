@@ -95,25 +95,25 @@ export default function Home() {
         <div className="container" style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
             <div className="badge badge-accent" style={{ marginBottom: 24, display: 'inline-flex' }}>
-              <Zap size={13} /> Live Altcoin Trading Platform
+              <Zap size={13} /> Buy Crypto with Naira
             </div>
             <h1 style={{
               fontSize: 'clamp(36px, 6vw, 72px)', fontWeight: 900, lineHeight: 1.1,
               marginBottom: 24, letterSpacing: '-2px',
             }}>
-              Buy & Sell{' '}
+              Buy{' '}
               <span style={{ background: 'linear-gradient(135deg, #6366F1, #A78BFA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                Altcoins
+                Crypto
               </span>
-              {' '}Instantly
+              {' '}with Naira
             </h1>
             <p style={{ fontSize: 18, color: 'var(--text-secondary)', lineHeight: 1.8, marginBottom: 40, maxWidth: 580, margin: '0 auto 40px' }}>
-              Cryptella is the fastest and most secure way to trade over 20 altcoins.
-              Real-time prices, instant execution, and bank-grade security.
+              Buy Bitcoin, USDT, Ethereum and 17 other top coins with a simple bank transfer.
+              Live rates, sent straight to your own wallet.
             </p>
             <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
               <Link to="/register" className="btn btn-primary btn-lg glow-pulse">
-                Start Trading Free <ArrowRight size={18} />
+                Get Started Free <ArrowRight size={18} />
               </Link>
               <Link to="/markets" className="btn btn-secondary btn-lg">
                 View Live Markets <ChevronRight size={18} />
@@ -122,7 +122,7 @@ export default function Home() {
 
             {/* Trust indicators */}
             <div style={{ display: 'flex', gap: 32, justifyContent: 'center', marginTop: 56, flexWrap: 'wrap' }}>
-              <StatBox value="20+" label="Altcoins" />
+              <StatBox value="20" label="Top Coins" />
               <div style={{ width: 1, background: 'var(--border)', height: 40, alignSelf: 'center' }} />
               <StatBox value="$0 Fee" label="Registration" />
               <div style={{ width: 1, background: 'var(--border)', height: 40, alignSelf: 'center' }} />
@@ -171,10 +171,10 @@ export default function Home() {
             <p className="section-sub">Everything you need to trade altcoins with confidence</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 24 }}>
-            <FeatureCard icon={<Zap size={26} />} title="Instant Execution" desc="Lightning-fast order processing with real-time price feeds. Your trades execute in milliseconds." />
+            <FeatureCard icon={<Zap size={26} />} title="Pay by Bank Transfer" desc="Pay in naira to the account we give you. No card needed, just a normal bank transfer." />
             <FeatureCard icon={<Shield size={26} />} title="Bank-Grade Security" desc="Military-grade encryption, 2FA authentication, and cold storage protection for your assets." />
-            <FeatureCard icon={<TrendingUp size={26} />} title="20+ Altcoins" desc="Trade Bitcoin, Ethereum, Solana, BNB, Dogecoin, and 15+ other top altcoins all in one place." />
-            <FeatureCard icon={<Globe size={26} />} title="Trade Anywhere" desc="Access your portfolio and trade from any device — desktop, tablet, or mobile browser." />
+            <FeatureCard icon={<TrendingUp size={26} />} title="20 Top Coins" desc="Bitcoin, Ethereum, USDT, USDC, Solana, BNB and more: the most traded coins across major exchanges." />
+            <FeatureCard icon={<Globe size={26} />} title="Straight to Your Wallet" desc="Choose your network and we send the crypto directly to your own wallet address." />
             <FeatureCard icon={<Users size={26} />} title="24/7 Support" desc="Our dedicated support team is available around the clock to assist with any questions." />
             <FeatureCard icon={<Lock size={26} />} title="Your Keys, Your Coins" desc="Transparent operations with clear fee structures. No hidden charges, ever." />
           </div>
@@ -186,13 +186,13 @@ export default function Home() {
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <h2 className="section-title">How It Works</h2>
-            <p className="section-sub">Start trading altcoins in under 2 minutes</p>
+            <p className="section-sub">Buy crypto with naira in four simple steps</p>
           </div>
           <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 36 }}>
             <StepItem num="1" title="Create Your Free Account" desc="Sign up with your email and password. No ID verification required to get started." />
-            <StepItem num="2" title="Fund Your Wallet" desc="Deposit USD into your Cryptella wallet using our secure payment methods." />
-            <StepItem num="3" title="Buy or Sell Altcoins" desc="Browse live prices, pick your coin, enter your amount, and trade instantly." />
-            <StepItem num="4" title="Grow Your Portfolio" desc="Monitor your holdings, track performance, and keep trading to grow your crypto portfolio." />
+            <StepItem num="2" title="Create a Buy Order" desc="Pick a coin, enter the naira amount, and add your wallet address and network." />
+            <StepItem num="3" title="Pay by Bank Transfer" desc="Transfer the naira amount to the account we give you, then upload your receipt." />
+            <StepItem num="4" title="Receive Your Crypto" desc="Once your payment is confirmed, we send the crypto to your wallet. Track it all in your dashboard." />
           </div>
           <div style={{ textAlign: 'center', marginTop: 48 }}>
             <Link to="/register" className="btn btn-primary btn-lg">
@@ -227,10 +227,10 @@ export default function Home() {
       }}>
         <div className="container" style={{ textAlign: 'center' }}>
           <h2 style={{ fontSize: 'clamp(28px, 4vw, 48px)', fontWeight: 900, marginBottom: 16, letterSpacing: '-1px' }}>
-            Ready to Start Trading?
+            Ready to Buy Crypto?
           </h2>
           <p style={{ fontSize: 17, color: 'var(--text-secondary)', marginBottom: 36, maxWidth: 480, margin: '0 auto 36px' }}>
-            Join thousands of traders already buying and selling altcoins on Cryptella.
+            Join thousands of Nigerians buying crypto with naira on Cryptella.
           </p>
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/register" className="btn btn-primary btn-lg">

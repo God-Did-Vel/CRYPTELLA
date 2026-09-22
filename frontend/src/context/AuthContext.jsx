@@ -9,6 +9,19 @@ export const AuthProvider = ({ children }) => {
   })
   const [loading, setLoading] = useState(false)
 
+  // Refresh the stored profile (e.g. role changes) when the app loads
+  useEffect(() => {
+    if (!localStorage.getItem('cryptella_token')) return
+    api.get('/user/me')
+      .then(({ data }) => {
+        const { id, firstName, lastName, email, role } = data.data
+        const fresh = { id, firstName, lastName, email, role }
+        localStorage.setItem('cryptella_user', JSON.stringify(fresh))
+        setUser(fresh)
+      })
+      .catch(() => {})
+  }, [])
+
   const login = async (email, password) => {
     setLoading(true)
     try {
@@ -16,7 +29,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('cryptella_token', data.token)
       localStorage.setItem('cryptella_user', JSON.stringify(data.user))
       setUser(data.user)
-      return { success: true }
+      return { success: true, user: data.user }
     } catch (err) {
       return { success: false, message: err.response?.data?.message || 'Login failed' }
     } finally {

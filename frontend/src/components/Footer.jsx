@@ -1,8 +1,11 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { Shield, Zap, Globe } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 export default function Footer() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   return (
     <footer style={{
       background: 'var(--bg-secondary)', borderTop: '1px solid var(--border)',
@@ -22,7 +25,7 @@ export default function Footer() {
               <span style={{ fontWeight: 800, fontSize: 20 }}>Cryptella</span>
             </div>
             <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, maxWidth: 240 }}>
-              The fastest and most secure platform to buy and sell altcoins in Nigeria and beyond.
+              The simple, secure way to buy crypto with naira in Nigeria.
             </p>
             <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
               {[<Shield size={16} />, <Zap size={16} />, <Globe size={16} />].map((icon, i) => (
@@ -38,8 +41,11 @@ export default function Footer() {
           {/* Trade */}
           <div>
             <h4 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Trade</h4>
-            {['Markets', 'Buy Crypto', 'Sell Crypto', 'Portfolio'].map((l) => (
-              <Link key={l} to="/markets" style={{
+            {(isAdmin
+              ? [['Markets', '/markets'], ['Orders', '/admin/orders'], ['Users', '/admin/users']]
+              : [['Markets', '/markets'], ['Buy Crypto', '/markets'], ['My Orders', '/orders']]
+            ).map(([l, to]) => (
+              <Link key={l} to={to} style={{
                 display: 'block', color: 'var(--text-secondary)', fontSize: 14,
                 marginBottom: 10, transition: 'color 0.2s',
               }}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Menu, X, TrendingUp, Wallet, LayoutDashboard, LogOut, ChevronDown, BarChart2 } from 'lucide-react'
+import { Menu, X, ClipboardList, LayoutDashboard, LogOut, ChevronDown, BarChart2, Users } from 'lucide-react'
 
 const Logo = () => (
   <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
@@ -34,15 +34,23 @@ export default function Navbar() {
 
   const handleLogout = () => { logout(); navigate('/') }
 
-  const navLinks = isLoggedIn
-    ? [
-        { label: 'Dashboard', to: '/dashboard', icon: <LayoutDashboard size={16} /> },
-        { label: 'Markets',   to: '/markets',   icon: <BarChart2 size={16} /> },
-        { label: 'Portfolio', to: '/portfolio', icon: <Wallet size={16} /> },
-      ]
-    : [
-        { label: 'Markets', to: '/markets', icon: <BarChart2 size={16} /> },
-      ]
+  const navLinks = !isLoggedIn
+    ? null
+    : user?.role === 'admin'
+      ? [
+          { label: 'Overview', to: '/admin',        icon: <LayoutDashboard size={16} /> },
+          { label: 'Orders',   to: '/admin/orders', icon: <ClipboardList size={16} /> },
+          { label: 'Users',    to: '/admin/users',  icon: <Users size={16} /> },
+          { label: 'Markets',  to: '/markets',      icon: <BarChart2 size={16} /> },
+        ]
+      : [
+          { label: 'Dashboard', to: '/dashboard', icon: <LayoutDashboard size={16} /> },
+          { label: 'Markets',   to: '/markets',   icon: <BarChart2 size={16} /> },
+          { label: 'Orders',    to: '/orders',    icon: <ClipboardList size={16} /> },
+        ]
+  const links = navLinks || [
+    { label: 'Markets', to: '/markets', icon: <BarChart2 size={16} /> },
+  ]
 
   return (
     <nav style={{
@@ -57,7 +65,7 @@ export default function Navbar() {
 
         {/* Desktop links */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, ['@media(max-width:768px)']: { display: 'none' } }} className="nav-links">
-          {navLinks.map((l) => (
+          {links.map((l) => (
             <Link key={l.to} to={l.to} style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 14px', borderRadius: 8,
@@ -102,7 +110,7 @@ export default function Navbar() {
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{user?.firstName} {user?.lastName}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{user?.email}</div>
                   </div>
-                  {navLinks.map((l) => (
+                  {links.map((l) => (
                     <Link key={l.to} to={l.to} onClick={() => setDropOpen(false)} style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '9px 12px', borderRadius: 6, fontSize: 14,
@@ -147,7 +155,7 @@ export default function Navbar() {
           background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)',
           padding: '16px 24px 24px',
         }}>
-          {navLinks.map((l) => (
+          {links.map((l) => (
             <Link key={l.to} to={l.to} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0',
               borderBottom: '1px solid var(--border-light)', fontSize: 15, color: 'var(--text-primary)',

@@ -133,3 +133,50 @@ input, select, textarea { font-family: inherit; }
 /* Glow pulse */
 @keyframes glow { 0%,100% { box-shadow: 0 0 20px rgba(99,102,241,0.3); } 50% { box-shadow: 0 0 40px rgba(99,102,241,0.6); } }
 .glow-pulse { animation: glow 3s ease-in-out infinite; }
+
+/* Order flow */
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.chip {
+  padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+  background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary);
+  cursor: pointer; transition: all 0.15s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip-active, .chip-active:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+.order-row:hover { background: var(--bg-card-hover); }
+
+.pending-card {
+  display: block; padding: 16px; border-radius: 10px; text-decoration: none;
+  background: var(--bg-secondary); border: 1px solid var(--border); transition: border-color 0.15s;
+}
+.pending-card:hover { border-color: var(--accent); }
+
+.quick-coin {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 10px;
+  background: var(--bg-secondary); border: 1px solid var(--border); text-decoration: none; transition: all 0.2s;
+}
+.quick-coin:hover { border-color: var(--accent); background: var(--accent-light); }
+
+.notice {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px;
+  background: var(--bg-secondary); border: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+}
+.notice-warn { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.4); color: var(--yellow); }
+
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 16px; font-size: 14px; }
+.admin-label { font-size: 12px; color: var(--text-muted); margin-bottom: 2px; }
+
+@media (max-width: 900px) {
+  .trade-grid { grid-template-columns: 1fr !important; }
+  .trade-panel { position: static !important; }
+  .admin-grid { grid-template-columns: 1fr; }
+}
+
+/* Admin */
+.admin-section { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 8px 0 12px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-link { text-decoration: none; display: block; }
+.stat-link .card { transition: border-color 0.15s; }
+.stat-link:hover .card { border-color: var(--accent); }

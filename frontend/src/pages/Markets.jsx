@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, TrendingUp, TrendingDown, RefreshCw, ArrowUpDown, ShoppingCart } from 'lucide-react'
 import { useCoins } from '../hooks/useCoins'
+import { useAuth } from '../context/AuthContext'
 import { formatPrice, formatChange, formatLargeNumber } from '../utils/format'
 import TickerTape from '../components/TickerTape'
 
@@ -13,6 +14,8 @@ const SortIcon = ({ field, current, dir }) => {
 }
 
 export default function Markets() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const { coins, loading, error, refetch } = useCoins(30000)
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState('marketCap')
@@ -180,9 +183,13 @@ export default function Markets() {
                         <td style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)' }}>{formatLargeNumber(coin.marketCap)}</td>
                         <td style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)' }}>{formatLargeNumber(coin.volume24h)}</td>
                         <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                          <Link to={`/trade/${coin.id}`} className="btn btn-primary btn-sm" style={{ gap: 6 }}>
-                            <ShoppingCart size={13} /> Trade
-                          </Link>
+                          {isAdmin ? (
+                            <Link to={`/trade/${coin.id}`} className="btn btn-secondary btn-sm">Details</Link>
+                          ) : (
+                            <Link to={`/trade/${coin.id}`} className="btn btn-primary btn-sm" style={{ gap: 6 }}>
+                              <ShoppingCart size={13} /> Buy
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     )

@@ -1,118 +1,36 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownLeft,
-  RefreshCw, Plus, ArrowRight, BarChart2, Clock
-} from 'lucide-react'
+import { ArrowRight, BarChart2, Clock, CheckCircle2, ClipboardList, AlertCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { useWallet } from '../hooks/useWallet'
 import { useCoins } from '../hooks/useCoins'
+import { useRates } from '../hooks/useRates'
 import api from '../utils/api'
-import { formatPrice, formatChange, formatDate, formatLargeNumber } from '../utils/format'
-import toast from 'react-hot-toast'
-
-const StatCard = ({ icon, label, value, sub, color = 'var(--accent)' }) => (
-  <div className="card" style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-    <div style={{
-      width: 48, height: 48, borderRadius: 12, flexShrink: 0,
-      background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color,
-    }}>{icon}</div>
-    <div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 2 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{sub}</div>}
-    </div>
-  </div>
-)
-
-const OrderRow = ({ order }) => (
-  <div style={{
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '12px 0', borderBottom: '1px solid var(--border-light)',
-  }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <div style={{
-        width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-        background: order.type === 'buy' ? 'var(--green-light)' : 'var(--red-light)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: order.type === 'buy' ? 'var(--green)' : 'var(--red)',
-      }}>
-        {order.type === 'buy' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
-      </div>
-      <div>
-        <div style={{ fontWeight: 600, fontSize: 14 }}>
-          {order.type === 'buy' ? 'Bought' : 'Sold'} {order.symbol}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(order.createdAt)}</div>
-      </div>
-    </div>
-    <div style={{ textAlign: 'right' }}>
-      <div style={{ fontWeight: 700, fontSize: 14 }}>${order.total?.toFixed(2)}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{order.amount} {order.symbol}</div>
-    </div>
-  </div>
-)
+import { formatChange, formatNaira, formatCrypto } from '../utils/format'
+import { ORDER_STATUS } from '../utils/orders'
+import OrderRow from '../components/OrderRow'
+import OrderStatusBadge from '../components/OrderStatusBadge'
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const { wallet, loading: walletLoading, refetch: refetchWallet } = useWallet()
   const { coins, loading: coinsLoading } = useCoins(30000)
-  const [orders, setOrders] = useState([])
-  const [ordersLoading, setOrdersLoading] = useState(true)
-  const [depositAmt, setDepositAmt] = useState('')
-  const [depositing, setDepositing] = useState(false)
-  const [showDeposit, setShowDeposit] = useState(false)
+  const { rates } = useRates()
+  const [summary, setSummary] = useState(null)
+  const [pending, setPending] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get('/orders').then(({ data }) => {
-      setOrders(data.data.slice(0, 5))
-    }).catch(() => {}).finally(() => setOrdersLoading(false))
+    const load = () =>
+      Promise.all([api.get('/user/dashboard'), api.get('/orders', { params: { status: 'pending' } })])
+        .then(([dash, pend]) => { setSummary(dash.data.data); setPending(pend.data.data) })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    load()
+    const id = setInterval(load, 30000)
+    return () => clearInterval(id)
   }, [])
 
-  // Calculate total portfolio value
-  const portfolioValue = React.useMemo(() => {
-    if (!wallet || !coins.length) return 0
-    let total = wallet.usdBalance || 0
-    Object.entries(wallet.holdings || {}).forEach(([symbol, amount]) => {
-      const coin = coins.find((c) => c.symbol === symbol)
-      if (coin) total += coin.price * amount
-    })
-    return total
-  }, [wallet, coins])
-
-  const handleDeposit = async (e) => {
-    e.preventDefault()
-    if (!depositAmt || isNaN(depositAmt) || parseFloat(depositAmt) <= 0) {
-      toast.error('Enter a valid amount')
-      return
-    }
-    setDepositing(true)
-    try {
-      const { data } = await api.post('/wallet/deposit', { amount: parseFloat(depositAmt) })
-      toast.success(data.message)
-      setDepositAmt('')
-      setShowDeposit(false)
-      refetchWallet()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Deposit failed')
-    } finally {
-      setDepositing(false)
-    }
-  }
-
-  // Top holdings
-  const topHoldings = React.useMemo(() => {
-    if (!wallet || !coins.length) return []
-    return Object.entries(wallet.holdings || {})
-      .map(([symbol, amount]) => {
-        const coin = coins.find((c) => c.symbol === symbol)
-        if (!coin || amount === 0) return null
-        return { symbol, amount, coin, value: coin.price * amount }
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
-  }, [wallet, coins])
+  const recent = summary?.recentOrders || []
+  const hour = new Date().getHours()
 
   return (
     <div style={{ paddingTop: 68 }}>
@@ -121,182 +39,94 @@ export default function Dashboard() {
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>
-              Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {user?.firstName} 👋
+              Good {hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}, {user?.firstName} 👋
             </h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Here's your portfolio overview</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+              Buy crypto with naira{rates?.ngnPerUsd ? ` · Today's rate ${formatNaira(rates.ngnPerUsd)} / $1` : ''}
+            </p>
           </div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <button onClick={() => setShowDeposit(!showDeposit)} className="btn btn-primary">
-              <Plus size={16} /> Deposit
-            </button>
-            <Link to="/markets" className="btn btn-secondary">
-              <BarChart2 size={16} /> Trade
-            </Link>
-          </div>
+          <Link to="/markets" className="btn btn-primary"><BarChart2 size={16} /> Buy crypto</Link>
         </div>
       </div>
 
-      {/* Deposit panel */}
-      {showDeposit && (
-        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
-          <div className="container" style={{ padding: '20px 24px' }}>
-            <form onSubmit={handleDeposit} style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', maxWidth: 480 }}>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <label className="label">Deposit amount (USD)</label>
-                <input
-                  className="input-field"
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  placeholder="e.g. 500"
-                  value={depositAmt}
-                  onChange={(e) => setDepositAmt(e.target.value)}
-                />
-              </div>
-              <button type="submit" className="btn btn-green" disabled={depositing}>
-                {depositing ? 'Processing…' : 'Confirm Deposit'}
-              </button>
-              <button type="button" onClick={() => setShowDeposit(false)} className="btn btn-secondary">Cancel</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <div className="container" style={{ padding: '32px 24px' }}>
-        {/* Stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20, marginBottom: 32 }}>
-          <StatCard
-            icon={<Wallet size={22} />}
-            label="Total Portfolio Value"
-            value={coinsLoading || walletLoading ? '…' : formatPrice(portfolioValue)}
-            sub="All assets combined"
-            color="var(--accent)"
-          />
-          <StatCard
-            icon={<ArrowDownLeft size={22} />}
-            label="USD Balance"
-            value={walletLoading ? '…' : formatPrice(wallet?.usdBalance || 0)}
-            sub="Available to trade"
-            color="var(--green)"
-          />
-          <StatCard
-            icon={<TrendingUp size={22} />}
-            label="Coin Holdings"
-            value={walletLoading ? '…' : `${Object.keys(wallet?.holdings || {}).filter(k => wallet.holdings[k] > 0).length} coins`}
-            sub="In your portfolio"
-            color="var(--yellow)"
-          />
-          <StatCard
-            icon={<Clock size={22} />}
-            label="Total Trades"
-            value={ordersLoading ? '…' : orders.length}
-            sub="Recent transactions"
-            color="#EC4899"
-          />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-          {/* Holdings */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700 }}>Top Holdings</h2>
-              <Link to="/portfolio" style={{ fontSize: 13, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                View all <ArrowRight size={13} />
-              </Link>
-            </div>
-            {walletLoading || coinsLoading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
-                  <div className="skeleton" style={{ height: 40, width: '45%' }} />
-                  <div className="skeleton" style={{ height: 40, width: '30%' }} />
-                </div>
-              ))
-            ) : topHoldings.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
-                <TrendingUp size={32} style={{ marginBottom: 12, opacity: 0.4 }} />
-                <p style={{ fontSize: 14 }}>No holdings yet. Deposit funds and buy your first coin!</p>
-                <Link to="/markets" className="btn btn-primary btn-sm" style={{ marginTop: 16, display: 'inline-flex' }}>Go to Markets</Link>
-              </div>
-            ) : (
-              topHoldings.map(({ symbol, amount, coin, value }) => (
-                <Link to={`/trade/${coin.id}`} key={symbol} style={{ textDecoration: 'none' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '11px 0', borderBottom: '1px solid var(--border-light)', cursor: 'pointer',
-                    transition: 'opacity 0.2s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      {coin.image
-                        ? <img src={coin.image} alt={symbol} style={{ width: 32, height: 32, borderRadius: '50%' }} />
-                        : <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', fontWeight: 700, fontSize: 12 }}>{symbol[0]}</div>
-                      }
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{coin.name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{amount} {symbol}</div>
-                      </div>
+      <div className="container" style={{ padding: '32px 24px 48px' }}>
+        {/* Pending orders needing attention */}
+        {!loading && pending.length > 0 && (
+          <div className="card" style={{ marginBottom: 24, borderColor: 'rgba(245,158,11,0.5)' }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertCircle size={18} style={{ color: 'var(--yellow)' }} /> Pending transactions
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+              {pending.map((o) => (
+                <Link key={o.id} to={`/orders/${o.id}`} className="pending-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {o.image && <img src={o.image} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />}
+                      <span style={{ fontWeight: 700 }}>{formatCrypto(o.cryptoAmount, o.symbol)}</span>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{formatPrice(value)}</div>
-                      <div style={{ fontSize: 12, color: coin.change24h >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                        {formatChange(coin.change24h)}
-                      </div>
-                    </div>
+                    <OrderStatusBadge status={o.status} size="sm" />
                   </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                    {formatNaira(o.amountNgn)} · {o.reference}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {o.status === 'awaiting_payment' ? 'Complete payment' : o.status === 'awaiting_receipt' ? 'Upload receipt' : 'View status'}
+                    <ArrowRight size={13} />
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>{ORDER_STATUS[o.status]?.hint}</p>
                 </Link>
-              ))
-            )}
-          </div>
-
-          {/* Recent orders */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700 }}>Recent Orders</h2>
-              <Link to="/portfolio" style={{ fontSize: 13, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                View all <ArrowRight size={13} />
-              </Link>
+              ))}
             </div>
-            {ordersLoading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
-                  <div className="skeleton" style={{ height: 40, width: '55%' }} />
-                  <div className="skeleton" style={{ height: 40, width: '25%' }} />
-                </div>
-              ))
-            ) : orders.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
-                <Clock size={32} style={{ marginBottom: 12, opacity: 0.4 }} />
-                <p style={{ fontSize: 14 }}>No orders yet. Start trading!</p>
-                <Link to="/markets" className="btn btn-primary btn-sm" style={{ marginTop: 16, display: 'inline-flex' }}>Browse Markets</Link>
-              </div>
-            ) : (
-              orders.map((order) => <OrderRow key={order.id} order={order} />)
-            )}
           </div>
+        )}
+
+        {/* Counts */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+          {[
+            { icon: <Clock size={20} />, label: 'Pending', value: summary?.pendingCount, color: 'var(--yellow)' },
+            { icon: <CheckCircle2 size={20} />, label: 'Completed', value: summary?.completedCount, color: 'var(--green)' },
+          ].map((s) => (
+            <div key={s.label} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px' }}>
+              <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--bg-secondary)', color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{s.icon}</div>
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{s.label} orders</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>{loading ? '…' : s.value ?? 0}</div>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Quick trade links */}
+        {/* Recent orders */}
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700 }}>Recent orders</h2>
+            <Link to="/orders" style={{ fontSize: 13, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              View all <ArrowRight size={13} />
+            </Link>
+          </div>
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 52, margin: '10px 0' }} />)
+          ) : recent.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+              <ClipboardList size={32} style={{ marginBottom: 12, opacity: 0.4 }} />
+              <p style={{ fontSize: 14 }}>No orders yet. Pick a coin to buy with naira.</p>
+              <Link to="/markets" className="btn btn-primary btn-sm" style={{ marginTop: 16, display: 'inline-flex' }}>Browse coins</Link>
+            </div>
+          ) : (
+            recent.map((o) => <OrderRow key={o.id} order={o} />)
+          )}
+        </div>
+
+        {/* Quick buy */}
         <div className="card" style={{ marginTop: 24 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>Quick Buy</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 16 }}>Quick buy</h2>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {(coinsLoading ? [] : coins.slice(0, 8)).map((coin) => (
-              <Link key={coin.id} to={`/trade/${coin.id}`} style={{ textDecoration: 'none' }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 16px', borderRadius: 10,
-                  background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-                  transition: 'all 0.2s', cursor: 'pointer',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg-secondary)' }}
-                >
-                  {coin.image && <img src={coin.image} alt={coin.symbol} style={{ width: 24, height: 24, borderRadius: '50%' }} />}
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{coin.symbol}</div>
-                    <div style={{ fontSize: 11, color: coin.change24h >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatChange(coin.change24h)}</div>
-                  </div>
+            {(coinsLoading ? [] : coins.slice(0, 10)).map((coin) => (
+              <Link key={coin.id} to={`/trade/${coin.id}`} className="quick-coin">
+                {coin.image && <img src={coin.image} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />}
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{coin.symbol}</div>
+                  <div style={{ fontSize: 11, color: coin.change24h >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatChange(coin.change24h)}</div>
                 </div>
               </Link>
             ))}
