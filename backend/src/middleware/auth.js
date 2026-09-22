@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
-const db = require('../models/db');
+const { User } = require('../models');
 
-const protect = (req, res, next) => {
+const protect = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -10,21 +10,41 @@ const protect = (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = db.findUserById(decoded.id);
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+  }
 
+  try {
+    const user = await User.findById(decoded.id);
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found.' });
     }
 
-    // Attach user to request (excluding password)
-    const { password, ...safeUser } = user;
-    req.user = safeUser;
+    // Attach user to request (password is excluded by the schema)
+    req.user = user.toJSON();
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+    next(err);
   }
 };
 
-module.exports = { protect };
+// Use after protect
+const adminOnly = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Admin access required.' });
+  }
+  next();
+};
+
+// Use after protect: admin accounts manage orders, they don't place them
+const customerOnly = (req, res, next) => {
+  if (req.user?.role === 'admin') {
+    return res.status(403).json({ success: false, message: 'Admin accounts cannot place or hold orders.' });
+  }
+  next();
+};
+
+module.exports = { protect, adminOnly, customerOnly };

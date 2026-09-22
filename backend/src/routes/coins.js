@@ -1,28 +1,31 @@
 const express = require('express');
-const { getAllCoins, getCoinById } = require('../services/coinService');
+const { getAllCoins, getCoinById, getMarketStatus } = require('../services/coinService');
 
 const router = express.Router();
 
-// GET /api/coins — list all supported altcoins with live prices
-router.get('/', async (req, res) => {
+// Served from the in-memory price cache — never calls CoinGecko directly.
+const sendError = (res, err) =>
+  res.status(err.status || 500).json({ success: false, message: err.status ? err.message : 'Failed to fetch coins.' });
+
+// GET /api/coins — listed coins (config/coins.js) with live prices
+router.get('/', (req, res) => {
   try {
-    const coins = await getAllCoins();
-    return res.json({ success: true, data: coins });
+    return res.json({ success: true, data: getAllCoins(), ...getMarketStatus() });
   } catch (err) {
-    return res.status(500).json({ success: false, message: 'Failed to fetch coins.' });
+    return sendError(res, err);
   }
 });
 
 // GET /api/coins/:coinId — single coin details
-router.get('/:coinId', async (req, res) => {
+router.get('/:coinId', (req, res) => {
   try {
-    const coin = await getCoinById(req.params.coinId);
+    const coin = getCoinById(req.params.coinId);
     if (!coin) {
       return res.status(404).json({ success: false, message: 'Coin not found.' });
     }
-    return res.json({ success: true, data: coin });
+    return res.json({ success: true, data: coin, ...getMarketStatus() });
   } catch (err) {
-    return res.status(500).json({ success: false, message: 'Failed to fetch coin.' });
+    return sendError(res, err);
   }
 });
 

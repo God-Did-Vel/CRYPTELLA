@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
-const db = require('../models/db');
+const { User } = require('../models');
 
 const router = express.Router();
 
@@ -11,13 +11,21 @@ const generateToken = (userId) =>
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 
+const publicUser = (user) => ({
+  id: user.id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  role: user.role,
+});
+
 // POST /api/auth/register
 router.post(
   '/register',
   [
     body('firstName').trim().notEmpty().withMessage('First name is required'),
     body('lastName').trim().notEmpty().withMessage('Last name is required'),
-    body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+    body('email').trim().isEmail().withMessage('Valid email is required').toLowerCase(),
     body('password')
       .isLength({ min: 8 })
       .withMessage('Password must be at least 8 characters'),
@@ -31,22 +39,24 @@ router.post(
     const { firstName, lastName, email, password } = req.body;
 
     try {
-      if (db.findUserByEmail(email)) {
+      if (await User.exists({ email })) {
         return res.status(409).json({ success: false, message: 'Email already registered.' });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
-      const user = db.createUser({ firstName, lastName, email, password: hashedPassword });
-
-      const token = generateToken(user.id);
+      const user = await User.create({ firstName, lastName, email, password: hashedPassword });
 
       return res.status(201).json({
         success: true,
         message: 'Account created successfully.',
-        token,
-        user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email },
+        token: generateToken(user.id),
+        user: publicUser(user),
       });
     } catch (err) {
+      if (err.code === 11000) {
+        return res.status(409).json({ success: false, message: 'Email already registered.' });
+      }
+      console.error('Registration error:', err);
       return res.status(500).json({ success: false, message: 'Registration failed.' });
     }
   }
@@ -56,7 +66,7 @@ router.post(
 router.post(
   '/login',
   [
-    body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+    body('email').trim().isEmail().withMessage('Valid email is required').toLowerCase(),
     body('password').notEmpty().withMessage('Password is required'),
   ],
   async (req, res) => {
@@ -68,25 +78,22 @@ router.post(
     const { email, password } = req.body;
 
     try {
-      const user = db.findUserByEmail(email);
-      if (!user) {
-        return res.status(401).json({ success: false, message: 'Invalid email or password.' });
-      }
+      const user = await User.findOne({ email }).select('+password');
 
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+      // 400 rather than 401: the frontend treats any 401 as an expired
+      // session and hard-redirects, which would swallow this message.
+      if (!user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(400).json({ success: false, message: 'Invalid email or password.' });
       }
-
-      const token = generateToken(user.id);
 
       return res.json({
         success: true,
         message: 'Login successful.',
-        token,
-        user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email },
+        token: generateToken(user.id),
+        user: publicUser(user),
       });
     } catch (err) {
+      console.error('Login error:', err);
       return res.status(500).json({ success: false, message: 'Login failed.' });
     }
   }

@@ -1,6 +1,7 @@
 const express = require('express');
-const { protect } = require('../middleware/auth');
-const db = require('../models/db');
+const { protect, customerOnly } = require('../middleware/auth');
+const { Order } = require('../models');
+const { expireStaleOrders, customerView } = require('../services/orderService');
 
 const router = express.Router();
 
@@ -11,24 +12,17 @@ router.get('/me', (req, res) => {
   return res.json({ success: true, data: req.user });
 });
 
-// GET /api/user/dashboard — get dashboard summary
-router.get('/dashboard', async (req, res) => {
+// GET /api/user/dashboard — recent orders and counts
+router.get('/dashboard', customerOnly, async (req, res) => {
   try {
-    const wallet = db.findWalletByUserId(req.user.id);
-    const orders = db.orders
-      .filter((o) => o.userId === req.user.id)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 5); // last 5 orders
-
-    return res.json({
-      success: true,
-      data: {
-        user: req.user,
-        wallet,
-        recentOrders: orders,
-        totalOrders: db.orders.filter((o) => o.userId === req.user.id).length,
-      },
-    });
+    await expireStaleOrders();
+    const userId = req.user.id;
+    const [recentOrders, pendingCount, completedCount] = await Promise.all([
+      Order.find({ userId }).sort({ createdAt: -1 }).limit(5),
+      Order.countDocuments({ userId, status: { $in: Order.PENDING_STATUSES } }),
+      Order.countDocuments({ userId, status: 'completed' }),
+    ]);
+    return res.json({ success: true, data: { user: req.user, recentOrders: customerView(recentOrders), pendingCount, completedCount } });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Failed to fetch dashboard data.' });
   }
