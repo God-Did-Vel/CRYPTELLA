@@ -21,8 +21,8 @@ module.exports = {
   NGN_PER_USD_OVERRIDE: num('NGN_PER_USD', null),
 
   // Our charge: naira added to every dollar. Customer rate = dollar value + charge
-  // (e.g. market ₦1,323.80 + ₦50 = ₦1,373.80 per $1)
-  NGN_CHARGE_PER_USD: num('NGN_CHARGE_PER_USD', 50),
+  // (e.g. market ₦1,323.80 + ₦60 = ₦1,383.80 per $1)
+  NGN_CHARGE_PER_USD: num('NGN_CHARGE_PER_USD', 60),
 
   // Receipt uploads
   RECEIPT_MAX_BYTES: 5 * 1024 * 1024,
