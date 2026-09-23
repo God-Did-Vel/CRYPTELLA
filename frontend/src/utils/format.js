@@ -32,7 +32,10 @@ export const formatCryptoAmount = (amount, decimals = 6) => {
 
 export const formatNaira = (amount, decimals = 2) => {
   if (amount === undefined || amount === null || isNaN(amount)) return '₦—'
-  return `₦${Number(amount).toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: decimals })}`
+  // Whole naira stay clean (₦5,000); kobo always shows two digits (₦189,608.70)
+  const n = Number(amount)
+  const hasKobo = decimals > 0 && Math.round(n * 100) % 100 !== 0
+  return `₦${n.toLocaleString('en-NG', { minimumFractionDigits: hasKobo ? 2 : 0, maximumFractionDigits: hasKobo ? decimals : 0 })}`
 }
 
 export const formatUsd = (amount) => {

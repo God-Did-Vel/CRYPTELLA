@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, ArrowLeft, ArrowRight, Info, AlertTriangle, ArrowDownUp, Clock, ShieldCheck,
 } from 'lucide-react'
@@ -8,6 +8,7 @@ import { useRates } from '../hooks/useRates'
 import api from '../utils/api'
 import { formatPrice, formatChange, formatLargeNumber, formatNaira, formatUsd, formatCrypto } from '../utils/format'
 import toast from 'react-hot-toast'
+import SellPanel from '../components/SellPanel'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 // Generates mock sparkline data around a base price
@@ -52,6 +53,9 @@ export default function Trade() {
   const { rates } = useRates()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const side = searchParams.get('side') === 'sell' ? 'sell' : 'buy'
+  const setSide = (s) => setSearchParams(s === 'sell' ? { side: 'sell' } : {}, { replace: true })
 
   const [coin, setCoin] = useState(null)
   const [coinLoading, setCoinLoading] = useState(true)
@@ -190,12 +194,17 @@ export default function Trade() {
             }
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <h1 style={{ fontSize: 26, fontWeight: 900 }}>{isAdmin ? coin.name : `Buy ${coin.name}`}</h1>
+                <h1 style={{ fontSize: 26, fontWeight: 900 }}>{isAdmin ? coin.name : `${side === 'sell' && coin.sellable ? 'Sell' : 'Buy'} ${coin.name}`}</h1>
                 <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, background: 'var(--bg-card)', padding: '4px 10px', borderRadius: 20 }}>{coin.symbol}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 4, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 24, fontWeight: 800 }}>{formatPrice(coin.price)}</span>
-                {rate && <span style={{ fontSize: 15, color: 'var(--text-secondary)' }}>≈ {formatNaira(coin.price * rate)}</span>}
+                {!isAdmin && rate && (
+                  <span style={{ fontSize: 15, color: 'var(--text-secondary)' }}>
+                    Buy ≈ {formatNaira(coin.price * rate)}
+                    {coin.sellable && rates?.sell?.ngnPerUsd ? <> · Sell ≈ {formatNaira(coin.price * rates.sell.ngnPerUsd)}</> : null}
+                  </span>
+                )}
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
                   padding: '4px 12px', borderRadius: 20, fontSize: 14, fontWeight: 600,
@@ -250,7 +259,9 @@ export default function Trade() {
                 { label: 'Market Cap', value: formatLargeNumber(coin.marketCap) },
                 { label: '24h Volume', value: formatLargeNumber(coin.volume24h) },
                 { label: '24h Change', value: formatChange(coin.change24h), color: positive ? 'var(--green)' : 'var(--red)' },
-                { label: 'Our rate', value: rate ? `${formatNaira(rate)} / $1` : '—' },
+                side === 'sell' && coin.sellable
+                  ? { label: 'Sell rate', value: rates?.sell?.ngnPerUsd ? `${formatNaira(rates.sell.ngnPerUsd)} / $1` : '—' }
+                  : { label: 'Buy rate', value: rate ? `${formatNaira(rate)} / $1` : '—' },
               ].map(s => (
                 <div key={s.label} className="card" style={{ padding: '16px 20px' }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>{s.label}</div>
@@ -261,13 +272,22 @@ export default function Trade() {
 
             {!isAdmin && (
             <div className="card">
-              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>How buying works</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>How {side === 'sell' && coin.sellable ? 'selling' : 'buying'} works</h3>
+              {side === 'sell' && coin.sellable ? (
+              <ol style={{ paddingLeft: 18, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.9 }}>
+                <li>Enter how much {coin.symbol} to sell, pick the network and add the bank account to pay you into.</li>
+                <li>We give you our {coin.symbol} deposit address. The rate is locked for {rates?.sell?.depositWindowMinutes ?? 60} minutes.</li>
+                <li>Send the exact amount, tap <strong>I have sent the crypto</strong> and paste the transaction hash.</li>
+                <li>Once the deposit is confirmed, we pay the naira into your bank account.</li>
+              </ol>
+              ) : (
               <ol style={{ paddingLeft: 18, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.9 }}>
                 <li>Enter the amount, choose a network and paste your {coin.symbol} wallet address.</li>
                 <li>We give you a naira account to transfer to. The rate is locked for {rates?.paymentWindowMinutes ?? 30} minutes.</li>
                 <li>After transferring, tap <strong>I have made payment</strong> and upload your receipt.</li>
                 <li>Once we confirm your payment, we send {coin.symbol} to your wallet.</li>
               </ol>
+              )}
             </div>
             )}
           </div>
@@ -275,6 +295,17 @@ export default function Trade() {
           {/* Right: buy panel */}
           {!isAdmin && (
           <div className="trade-panel" style={{ position: 'sticky', top: 84 }}>
+            {coin.sellable && (
+              <div className="side-tabs" role="tablist">
+                {['buy', 'sell'].map((s) => (
+                  <button key={s} type="button" role="tab" aria-selected={side === s} onClick={() => setSide(s)}
+                    className={`side-tab ${side === s ? `side-tab-${s}` : ''}`}>
+                    {s === 'buy' ? 'Buy' : 'Sell'}
+                  </button>
+                ))}
+              </div>
+            )}
+            {side === 'buy' ? (
             <form onSubmit={handleSubmit} className="card" style={{ boxShadow: 'var(--shadow-lg)' }} noValidate>
               <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 20 }}>Buy {coin.symbol} with Naira</h2>
 
@@ -394,6 +425,9 @@ export default function Trade() {
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><ShieldCheck size={12} /> All fees included in the rate</span>
               </div>
             </form>
+            ) : (
+              <SellPanel coin={coin} rates={rates} isLoggedIn={isLoggedIn} />
+            )}
           </div>
           )}
         </div>

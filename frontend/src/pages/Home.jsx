@@ -95,7 +95,7 @@ export default function Home() {
         <div className="container" style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
             <div className="badge badge-accent" style={{ marginBottom: 24, display: 'inline-flex' }}>
-              <Zap size={13} /> Buy Crypto with Naira
+              <Zap size={13} /> Buy &amp; Sell Crypto with Naira
             </div>
             <h1 style={{
               fontSize: 'clamp(36px, 6vw, 72px)', fontWeight: 900, lineHeight: 1.1,
@@ -108,8 +108,8 @@ export default function Home() {
               {' '}with Naira
             </h1>
             <p style={{ fontSize: 18, color: 'var(--text-secondary)', lineHeight: 1.8, marginBottom: 40, maxWidth: 580, margin: '0 auto 40px' }}>
-              Buy Bitcoin, USDT, Ethereum and 17 other top coins with a simple bank transfer.
-              Live rates, sent straight to your own wallet.
+              Buy Bitcoin, USDT, Ethereum and 17 other top coins with a simple bank transfer,
+              or sell your crypto and get paid straight to your bank account.
             </p>
             <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
               <Link to="/register" className="btn btn-primary btn-lg glow-pulse">
@@ -174,7 +174,7 @@ export default function Home() {
             <FeatureCard icon={<Zap size={26} />} title="Pay by Bank Transfer" desc="Pay in naira to the account we give you. No card needed, just a normal bank transfer." />
             <FeatureCard icon={<Shield size={26} />} title="Bank-Grade Security" desc="Military-grade encryption, 2FA authentication, and cold storage protection for your assets." />
             <FeatureCard icon={<TrendingUp size={26} />} title="20 Top Coins" desc="Bitcoin, Ethereum, USDT, USDC, Solana, BNB and more: the most traded coins across major exchanges." />
-            <FeatureCard icon={<Globe size={26} />} title="Straight to Your Wallet" desc="Choose your network and we send the crypto directly to your own wallet address." />
+            <FeatureCard icon={<Globe size={26} />} title="Sell for Cash" desc="Sell BTC, ETH, USDT, USDC and more. Send us the crypto and we pay naira into your bank account." />
             <FeatureCard icon={<Users size={26} />} title="24/7 Support" desc="Our dedicated support team is available around the clock to assist with any questions." />
             <FeatureCard icon={<Lock size={26} />} title="Your Keys, Your Coins" desc="Transparent operations with clear fee structures. No hidden charges, ever." />
           </div>

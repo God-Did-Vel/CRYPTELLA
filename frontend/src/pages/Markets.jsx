@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Search, TrendingUp, TrendingDown, RefreshCw, ArrowUpDown, ShoppingCart } from 'lucide-react'
 import { useCoins } from '../hooks/useCoins'
 import { useAuth } from '../context/AuthContext'
-import { formatPrice, formatChange, formatLargeNumber } from '../utils/format'
+import { useRates } from '../hooks/useRates'
+import { formatPrice, formatChange, formatLargeNumber, formatNaira } from '../utils/format'
 import TickerTape from '../components/TickerTape'
 
 const SortIcon = ({ field, current, dir }) => {
@@ -16,7 +17,13 @@ const SortIcon = ({ field, current, dir }) => {
 export default function Markets() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
-  const { coins, loading, error, refetch } = useCoins(30000)
+  const { rates } = useRates()
+  const buyRate = rates?.ngnPerUsd
+  const sellRate = rates?.sell?.ngnPerUsd
+  const { coins: allCoins, loading, error, refetch } = useCoins(30000)
+  const [params] = useSearchParams()
+  const sellMode = params.get('side') === 'sell' && !isAdmin
+  const coins = useMemo(() => (sellMode ? allCoins.filter((c) => c.sellable) : allCoins), [allCoins, sellMode])
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState('marketCap')
   const [sortDir, setSortDir] = useState('desc')
@@ -66,9 +73,11 @@ export default function Markets() {
         <div className="container">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
             <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Live Markets</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{sellMode ? 'Sell crypto for naira' : 'Live Markets'}</h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-                {loading ? 'Loading…' : `${coins.length} altcoins • ${gainers} gainers • ${losers} losers`}
+                {loading ? 'Loading…' : sellMode
+                  ? <>Pick the coin you want to sell · <Link to="/markets" style={{ color: 'var(--accent)' }}>show all coins</Link></>
+                  : `${coins.length} coins • ${gainers} gainers • ${losers} losers`}
               </p>
             </div>
             <button onClick={refetch} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -121,6 +130,8 @@ export default function Markets() {
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', width: 40 }}>#</th>
                 <ThBtn label="Coin" field="name" />
                 <ThBtn label="Price" field="price" />
+                <th className="naira-col" style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: 'var(--green)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>Buy price (₦)</th>
+                <th className="naira-col" style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: 'var(--red)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>Sell price (₦)</th>
                 <ThBtn label="24h Change" field="change24h" />
                 <ThBtn label="Market Cap" field="marketCap" />
                 <ThBtn label="Volume (24h)" field="volume24h" />
@@ -141,7 +152,7 @@ export default function Markets() {
                 : filtered.length === 0
                 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={9} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No coins match your search.
                     </td>
                   </tr>
@@ -169,6 +180,12 @@ export default function Markets() {
                           </Link>
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, fontSize: 14 }}>{formatPrice(coin.price)}</td>
+                        <td className="naira-col" style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+                          {buyRate ? formatNaira(coin.price * buyRate) : '—'}
+                        </td>
+                        <td className="naira-col" style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', color: coin.sellable ? undefined : 'var(--text-muted)' }}>
+                          {coin.sellable && sellRate ? formatNaira(coin.price * sellRate) : '—'}
+                        </td>
                         <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -186,9 +203,16 @@ export default function Markets() {
                           {isAdmin ? (
                             <Link to={`/trade/${coin.id}`} className="btn btn-secondary btn-sm">Details</Link>
                           ) : (
-                            <Link to={`/trade/${coin.id}`} className="btn btn-primary btn-sm" style={{ gap: 6 }}>
-                              <ShoppingCart size={13} /> Buy
-                            </Link>
+                            <div style={{ display: 'inline-flex', gap: 6 }}>
+                              {!sellMode && (
+                                <Link to={`/trade/${coin.id}`} className="btn btn-green btn-sm" style={{ gap: 6 }}>
+                                  <ShoppingCart size={13} /> Buy
+                                </Link>
+                              )}
+                              {coin.sellable && (
+                                <Link to={`/trade/${coin.id}?side=sell`} className="btn btn-red btn-sm">Sell</Link>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>

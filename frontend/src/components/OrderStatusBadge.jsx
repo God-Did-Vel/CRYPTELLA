@@ -1,8 +1,8 @@
 import React from 'react'
-import { ORDER_STATUS } from '../utils/orders'
+import { statusMeta } from '../utils/orders'
 
-export default function OrderStatusBadge({ status, size = 'md' }) {
-  const meta = ORDER_STATUS[status] || { label: status, color: 'var(--text-muted)', bg: 'var(--bg-secondary)' }
+export default function OrderStatusBadge({ status, type = 'buy', size = 'md' }) {
+  const meta = statusMeta(status, type)
   return (
     <span className="badge" style={{
       background: meta.bg, color: meta.color,

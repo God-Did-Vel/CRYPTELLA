@@ -180,3 +180,15 @@ input, select, textarea { font-family: inherit; }
 .stat-link { text-decoration: none; display: block; }
 .stat-link .card { transition: border-color 0.15s; }
 .stat-link:hover .card { border-color: var(--accent); }
+
+/* Buy / Sell switch */
+.side-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; }
+.side-tab { flex: 1; padding: 10px 0; border: none; border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 15px; font-weight: 700; transition: all 0.15s; }
+.side-tab:hover { color: var(--text-primary); }
+.side-tab-buy { background: var(--green); color: #fff; }
+.side-tab-sell { background: var(--red); color: #fff; }
+.side-tab-buy:hover, .side-tab-sell:hover { color: #fff; }
+
+.type-pill { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.type-buy { background: var(--green-light); color: var(--green); }
+.type-sell { background: var(--red-light); color: var(--red); }
