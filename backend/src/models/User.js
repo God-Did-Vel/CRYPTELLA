@@ -9,6 +9,12 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, select: false },
     isVerified: { type: Boolean, default: true },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    // Last bank account used to receive naira from a sell order (pre-fills the form)
+    payoutAccount: {
+      bankName: String,
+      accountNumber: String,
+      accountName: String,
+    },
   },
   { timestamps: true, toJSON }
 );

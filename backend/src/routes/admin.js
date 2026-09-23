@@ -48,11 +48,11 @@ router.get('/overview', async (req, res) => {
       Order.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
       Order.aggregate([
         { $match: { status: 'completed' } },
-        { $group: { _id: null, volumeNgn: { $sum: '$amountNgn' }, volumeUsd: { $sum: '$amountUsd' }, chargesNgn: { $sum: { $ifNull: ['$chargeNgn', 0] } } } },
+        { $group: { _id: { $ifNull: ['$type', 'buy'] }, count: { $sum: 1 }, volumeNgn: { $sum: '$amountNgn' }, volumeUsd: { $sum: '$amountUsd' }, chargesNgn: { $sum: { $ifNull: ['$chargeNgn', 0] } } } },
       ]),
       Order.aggregate([
         { $match: { status: 'completed', completedAt: { $gte: today } } },
-        { $group: { _id: null, count: { $sum: 1 }, volumeNgn: { $sum: '$amountNgn' }, chargesNgn: { $sum: { $ifNull: ['$chargeNgn', 0] } } } },
+        { $group: { _id: { $ifNull: ['$type', 'buy'] }, count: { $sum: 1 }, volumeNgn: { $sum: '$amountNgn' }, chargesNgn: { $sum: { $ifNull: ['$chargeNgn', 0] } } } },
       ]),
       Order.find({ status: 'under_review' }).sort({ updatedAt: 1 }).limit(5).populate('userId', 'firstName lastName email'),
     ]);
@@ -61,8 +61,9 @@ router.get('/overview', async (req, res) => {
     statusRows.forEach((r) => {
       orders[r._id] = r.count;
     });
-    const all = completedTotals[0] || {};
-    const day = completedToday[0] || {};
+    const pick = (rows, type) => rows.find((r) => r._id === type) || {};
+    const sum = (rows, key) => rows.reduce((t, r) => t + (r[key] || 0), 0);
+    const [buys, sells, buysToday, sellsToday] = [pick(completedTotals, 'buy'), pick(completedTotals, 'sell'), pick(completedToday, 'buy'), pick(completedToday, 'sell')];
 
     return res.json({
       success: true,
@@ -71,8 +72,17 @@ router.get('/overview', async (req, res) => {
         newUsersThisWeek,
         orders,
         totalOrders: Object.values(orders).reduce((a, b) => a + b, 0),
-        completed: { volumeNgn: all.volumeNgn || 0, volumeUsd: all.volumeUsd || 0, chargesNgn: all.chargesNgn || 0 },
-        today: { completed: day.count || 0, volumeNgn: day.volumeNgn || 0, chargesNgn: day.chargesNgn || 0 },
+        completed: {
+          buy: { count: buys.count || 0, ngnReceived: buys.volumeNgn || 0, usd: buys.volumeUsd || 0 },
+          sell: { count: sells.count || 0, ngnPaidOut: sells.volumeNgn || 0, usd: sells.volumeUsd || 0 },
+          chargesNgn: sum(completedTotals, 'chargesNgn'),
+        },
+        today: {
+          completed: sum(completedToday, 'count'),
+          ngnReceived: buysToday.volumeNgn || 0,
+          ngnPaidOut: sellsToday.volumeNgn || 0,
+          chargesNgn: sum(completedToday, 'chargesNgn'),
+        },
         needsReview,
       },
     });
@@ -96,6 +106,7 @@ router.get('/users', async (req, res) => {
       recent: { createdAt: -1 },
       orders: { 'stats.total': -1, createdAt: -1 },
       spent: { 'stats.spentNgn': -1, createdAt: -1 },
+      sold: { 'stats.receivedNgn': -1, createdAt: -1 },
       active: { 'stats.lastOrderAt': -1, createdAt: -1 },
     };
     const sort = sorts[req.query.sort] || sorts.recent;
@@ -112,7 +123,7 @@ router.get('/users', async (req, res) => {
             localField: '_id',
             foreignField: 'userId',
             as: 'orders',
-            pipeline: [{ $project: { status: 1, amountNgn: 1, createdAt: 1 } }],
+            pipeline: [{ $project: { status: 1, type: 1, amountNgn: 1, createdAt: 1 } }],
           },
         },
         {
@@ -122,7 +133,20 @@ router.get('/users', async (req, res) => {
               pending: { $size: { $filter: { input: '$orders', cond: { $in: ['$$this.status', pending] } } } },
               completed: { $size: { $filter: { input: '$orders', cond: { $eq: ['$$this.status', 'completed'] } } } },
               spentNgn: {
-                $sum: { $map: { input: { $filter: { input: '$orders', cond: { $eq: ['$$this.status', 'completed'] } } }, in: '$$this.amountNgn' } },
+                $sum: {
+                  $map: {
+                    input: { $filter: { input: '$orders', cond: { $and: [{ $eq: ['$$this.status', 'completed'] }, { $ne: ['$$this.type', 'sell'] }] } } },
+                    in: '$$this.amountNgn',
+                  },
+                },
+              },
+              receivedNgn: {
+                $sum: {
+                  $map: {
+                    input: { $filter: { input: '$orders', cond: { $and: [{ $eq: ['$$this.status', 'completed'] }, { $eq: ['$$this.type', 'sell'] }] } } },
+                    in: '$$this.amountNgn',
+                  },
+                },
               },
               lastOrderAt: { $max: '$orders.createdAt' },
             },
@@ -180,13 +204,17 @@ router.get('/orders', async (req, res) => {
     if (status === 'pending') filter.status = { $in: Order.PENDING_STATUSES };
     else if (Order.STATUSES.includes(status)) filter.status = status;
     if (req.query.user && isObjectId(req.query.user)) filter.userId = req.query.user;
+    if (['buy', 'sell'].includes(req.query.type)) filter.type = req.query.type;
 
     if (q && String(q).trim()) {
       const rx = new RegExp(escapeRegex(String(q).trim()), 'i');
       const users = await User.find({ $or: [{ email: rx }, { firstName: rx }, { lastName: rx }] })
         .select('_id')
         .limit(200);
-      filter.$or = [{ reference: rx }, { walletAddress: rx }, { txHash: rx }, { userId: { $in: users.map((u) => u._id) } }];
+      filter.$or = [
+        { reference: rx }, { walletAddress: rx }, { txHash: rx }, { depositTxHash: rx }, { payoutReference: rx },
+        { 'payoutAccount.accountNumber': rx }, { 'payoutAccount.accountName': rx }, { userId: { $in: users.map((u) => u._id) } },
+      ];
     }
 
     const limit = 25;
@@ -222,27 +250,30 @@ router.get('/orders/:id/receipt', async (req, res) => {
 });
 
 // POST /api/admin/orders/:id/complete { txHash } — naira received and crypto sent
-router.post(
-  '/orders/:id/complete',
-  [body('txHash').isString().trim().isLength({ min: 8, max: 200 }).withMessage('Enter the blockchain transaction hash.')],
-  async (req, res) => {
-    if (!validate(req, res)) return;
+// Buy: { txHash } of the crypto we sent. Sell: { payoutReference } of the naira transfer we made.
+router.post('/orders/:id/complete', async (req, res) => {
     try {
       const order = await findOrder(req.params.id);
+      const isSell = order.type === 'sell';
+      const proof = String((isSell ? req.body.payoutReference : req.body.txHash) || '').trim();
+      if (isSell ? proof.length < 4 || proof.length > 100 : proof.length < 8 || proof.length > 200) {
+        throw new OrderError(isSell ? 'Enter the bank transfer reference for the payout.' : 'Enter the blockchain transaction hash.', 422);
+      }
       const updated = await transition(
         { _id: order._id },
         Order.PENDING_STATUSES,
         'completed',
-        `Payment confirmed and ${order.cryptoAmount} ${order.symbol} sent`,
-        { txHash: req.body.txHash, reviewedBy: req.user.id, completedAt: new Date() }
+        isSell
+          ? `Deposit confirmed and ₦${order.amountNgn.toLocaleString('en-NG')} paid to ${order.payoutAccount?.bankName}`
+          : `Payment confirmed and ${order.cryptoAmount} ${order.symbol} sent`,
+        { ...(isSell ? { payoutReference: proof } : { txHash: proof }), reviewedBy: req.user.id, completedAt: new Date() }
       );
       if (!updated) throw new OrderError(`This order is already ${order.status.replace(/_/g, ' ')}.`, 409);
       return res.json({ success: true, message: `Order ${order.reference} completed.`, data: updated });
     } catch (err) {
       return handleError(res, err, 'Could not complete the order.');
     }
-  }
-);
+});
 
 // POST /api/admin/orders/:id/reject { reason }
 router.post(

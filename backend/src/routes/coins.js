@@ -1,5 +1,6 @@
 const express = require('express');
 const { getAllCoins, getCoinById, getMarketStatus } = require('../services/coinService');
+const { SELLABLE_COIN_IDS } = require('../config/sell');
 
 const router = express.Router();
 
@@ -10,7 +11,8 @@ const sendError = (res, err) =>
 // GET /api/coins — listed coins (config/coins.js) with live prices
 router.get('/', (req, res) => {
   try {
-    return res.json({ success: true, data: getAllCoins(), ...getMarketStatus() });
+    const coins = getAllCoins().map((c) => ({ ...c, sellable: SELLABLE_COIN_IDS.includes(c.id) }));
+    return res.json({ success: true, data: coins, ...getMarketStatus() });
   } catch (err) {
     return sendError(res, err);
   }

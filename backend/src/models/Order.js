@@ -2,14 +2,20 @@ const mongoose = require('mongoose');
 const toJSON = require('./toJSON');
 
 /**
- * A naira → crypto buy order.
+ * A buy order (customer pays naira, we send crypto) or a sell order
+ * (customer sends crypto, we pay naira).
  *
- * Lifecycle:
+ * Buy lifecycle:
  *   awaiting_payment ─ user clicks "I have made payment" ─▶ awaiting_receipt
  *   awaiting_receipt ─ user uploads the transfer receipt ──▶ under_review
  *   under_review ───── admin sends the crypto ─────────────▶ completed
  *   under_review ───── admin can't confirm the payment ────▶ rejected
  *   awaiting_payment ─ user cancels / payment window ends ─▶ cancelled / expired
+ *
+ * Sell lifecycle (awaiting_payment = waiting for the customer's crypto deposit):
+ *   awaiting_payment ─ user submits the deposit tx hash ───▶ under_review
+ *   under_review ───── admin confirms deposit, pays naira ─▶ completed
+ *   under_review ───── deposit not found / wrong amount ───▶ rejected
  */
 const STATUSES = ['awaiting_payment', 'awaiting_receipt', 'under_review', 'completed', 'rejected', 'cancelled', 'expired'];
 const PENDING_STATUSES = ['awaiting_payment', 'awaiting_receipt', 'under_review'];
@@ -17,22 +23,38 @@ const PENDING_STATUSES = ['awaiting_payment', 'awaiting_receipt', 'under_review'
 const orderSchema = new mongoose.Schema(
   {
     reference: { type: String, required: true, unique: true },
+    type: { type: String, enum: ['buy', 'sell'], default: 'buy', index: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
 
-    // What is being bought
+    // The coin being bought or sold
     coinId: { type: String, required: true },
     symbol: { type: String, required: true },
     name: String,
     image: String,
 
-    // Where to send it
+    // Buy: the customer's wallet we send to. Sell: the network they deposit on.
     network: { id: { type: String, required: true }, name: { type: String, required: true } },
-    walletAddress: { type: String, required: true },
+    walletAddress: { type: String, required() { return this.type !== 'sell'; } },
     memo: { type: String, default: null },
 
+    // Sell: our deposit address, the customer's proof, and where we pay them
+    deposit: {
+      address: String,
+      memo: String, // destination tag / memo that identifies this order
+      memoLabel: String,
+    },
+    depositTxHash: { type: String, default: null },
+    payoutAccount: {
+      bankName: String,
+      accountNumber: String,
+      accountName: String,
+    },
+    grossNgn: Number, // sell: market value of the crypto before our charge
+    payoutReference: { type: String, default: null }, // sell: our bank transfer reference
+
     // Quote, locked when the order is created
-    amountNgn: { type: Number, required: true },
-    ngnPerUsd: { type: Number, required: true }, // customer rate = dollar value + charge
+    amountNgn: { type: Number, required: true }, // buy: naira paid in; sell: naira paid out (after charge)
+    ngnPerUsd: { type: Number, required: true }, // customer rate: buy = dollar value + charge, sell = dollar value − charge
     baseNgnPerUsd: Number, // dollar value in naira before our charge
     chargePerUsd: Number, // our charge per dollar (₦)
     chargeNgn: Number, // our total charge on this order (₦)

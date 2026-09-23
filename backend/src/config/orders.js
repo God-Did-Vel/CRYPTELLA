@@ -24,6 +24,13 @@ module.exports = {
   // (e.g. market ₦1,323.80 + ₦60 = ₦1,383.80 per $1)
   NGN_CHARGE_PER_USD: num('NGN_CHARGE_PER_USD', 60),
 
+  // Selling: our charge in naira taken off every dollar the customer sells.
+  // Customer sell rate = dollar value − charge (shown to them as a separate line)
+  NGN_SELL_CHARGE_PER_USD: num('NGN_SELL_CHARGE_PER_USD', 60),
+
+  // How long a seller has to send the crypto and submit the transaction hash
+  SELL_DEPOSIT_WINDOW_MINUTES: num('SELL_DEPOSIT_WINDOW_MINUTES', 60),
+
   // Receipt uploads
   RECEIPT_MAX_BYTES: 5 * 1024 * 1024,
 };

@@ -1,15 +1,18 @@
+const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const { body, validationResult } = require('express-validator');
 const { protect, customerOnly } = require('../middleware/auth');
-const { Order, Receipt } = require('../models');
-const { getBuyQuote, PricesUnavailableError } = require('../services/coinService');
+const { Order, Receipt, User } = require('../models');
+const { getBuyQuote, getSellQuote, PricesUnavailableError } = require('../services/coinService');
+const { getDepositAddress } = require('../config/sell');
 const { createPaymentAccount, PaymentSetupError } = require('../services/paymentAccountService');
 const { validateDestination } = require('../config/coins');
 const {
   MIN_ORDER_NGN,
   MAX_ORDER_NGN,
   PAYMENT_WINDOW_MINUTES,
+  SELL_DEPOSIT_WINDOW_MINUTES,
   MAX_OPEN_UNPAID_ORDERS,
   RECEIPT_MAX_BYTES,
 } = require('../config/orders');
@@ -117,6 +120,7 @@ router.post(
         try {
           const order = await Order.create({
             reference,
+            type: 'buy',
             userId: req.user.id,
             coinId: coin.id,
             symbol: coin.symbol,
@@ -150,6 +154,108 @@ router.post(
   }
 );
 
+// Checks and cleans the bank account a seller wants to be paid into
+const validatePayoutAccount = ({ bankName, accountNumber, accountName }) => {
+  const bank = String(bankName || '').trim();
+  const number = String(accountNumber || '').replace(/\s/g, '');
+  const name = String(accountName || '').trim().replace(/\s+/g, ' ');
+  if (bank.length < 2 || bank.length > 80) throw new OrderError('Choose your bank.', 422);
+  if (!/^\d{10}$/.test(number)) throw new OrderError('Account number must be 10 digits.', 422);
+  if (!/^[A-Za-z][A-Za-z .,'&-]{2,99}$/.test(name)) throw new OrderError('Enter the account name exactly as it appears on your bank account.', 422);
+  return { bankName: bank, accountNumber: number, accountName: name };
+};
+
+// POST /api/orders/sell — create a sell order (starts as awaiting_payment = waiting for the deposit)
+router.post(
+  '/sell',
+  [
+    body('coinId').isString().notEmpty().withMessage('Choose a coin.'),
+    body('cryptoAmount').isFloat({ gt: 0 }).withMessage('Enter the amount you want to sell.').toFloat(),
+    body('networkId').isString().notEmpty().withMessage('Choose a network.'),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({ success: false, message: errors.array()[0].msg, errors: errors.array() });
+    }
+
+    try {
+      const quote = getSellQuote(req.body.coinId);
+      if (!quote) throw new OrderError('This coin cannot be sold on Cryptella.', 404);
+      const { coin, baseNgnPerUsd, chargePerUsd, ngnPerUsd } = quote;
+
+      const deposit = getDepositAddress(coin.id, req.body.networkId);
+      if (!deposit) throw new OrderError(`We don't accept ${coin.symbol} on that network.`, 422);
+      if (deposit.placeholder && process.env.NODE_ENV === 'production') {
+        throw new OrderError(`Selling ${coin.symbol} on ${deposit.network.name} is not available right now.`, 503);
+      }
+
+      const payoutAccount = validatePayoutAccount(req.body);
+
+      const cryptoAmount = round(req.body.cryptoAmount, 8);
+      const amountUsd = round(cryptoAmount * coin.price, 2);
+      const grossNgn = round(cryptoAmount * coin.price * baseNgnPerUsd, 2);
+      const chargeNgn = round(cryptoAmount * coin.price * chargePerUsd, 2);
+      const amountNgn = round(grossNgn - chargeNgn, 2);
+      if (amountNgn < MIN_ORDER_NGN) {
+        throw new OrderError(`You'd receive ${formatNgn(Math.max(amountNgn, 0))}. The minimum payout is ${formatNgn(MIN_ORDER_NGN)}.`);
+      }
+      if (amountNgn > MAX_ORDER_NGN) {
+        throw new OrderError(`You'd receive ${formatNgn(amountNgn)}. The maximum payout per order is ${formatNgn(MAX_ORDER_NGN)}.`);
+      }
+
+      await expireStaleOrders();
+      const openUnpaid = await Order.countDocuments({ userId: req.user.id, status: 'awaiting_payment' });
+      if (openUnpaid >= MAX_OPEN_UNPAID_ORDERS) {
+        throw new OrderError(`You already have ${openUnpaid} open orders waiting. Complete or cancel one before creating another.`, 429);
+      }
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const reference = generateReference();
+        try {
+          const order = await Order.create({
+            reference,
+            type: 'sell',
+            userId: req.user.id,
+            coinId: coin.id,
+            symbol: coin.symbol,
+            name: coin.name,
+            image: coin.image,
+            network: deposit.network,
+            deposit: {
+              address: deposit.address,
+              // Shared addresses on memo networks need a tag to tell deposits apart
+              memo: deposit.memoLabel ? String(crypto.randomInt(100000000, 2 ** 32 - 1)) : null,
+              memoLabel: deposit.memoLabel,
+            },
+            payoutAccount,
+            cryptoAmount,
+            priceUsd: coin.price,
+            amountUsd,
+            baseNgnPerUsd,
+            chargePerUsd,
+            ngnPerUsd,
+            grossNgn,
+            chargeNgn,
+            amountNgn,
+            expiresAt: new Date(Date.now() + SELL_DEPOSIT_WINDOW_MINUTES * 60 * 1000),
+            status: 'awaiting_payment',
+            history: [{ status: 'awaiting_payment', note: 'Sell order created' }],
+          });
+          // Remember the account to pre-fill next time
+          await User.updateOne({ _id: req.user.id }, { $set: { payoutAccount } });
+          return res.status(201).json({ success: true, message: 'Sell order created. Send your crypto to continue.', data: customerView(order) });
+        } catch (err) {
+          if (err.code === 11000 && attempt < 2) continue;
+          throw err;
+        }
+      }
+    } catch (err) {
+      return handleError(res, err, 'Could not create the sell order.');
+    }
+  }
+);
+
 // GET /api/orders/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -163,6 +269,7 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/mark-paid', async (req, res) => {
   try {
     const order = await findOwnOrder(req);
+    if (order.type === 'sell') throw new OrderError('Use "I have sent the crypto" for sell orders.');
     if (order.status === 'awaiting_receipt') return res.json({ success: true, data: customerView(order) });
     if (order.status === 'expired') {
       throw new OrderError('This order expired before payment was confirmed. If you already paid, contact support with your reference.');
@@ -199,6 +306,7 @@ router.post('/:id/receipt', receiptUpload, async (req, res) => {
   let receipt;
   try {
     const order = await findOwnOrder(req);
+    if (order.type === 'sell') throw new OrderError('Submit your transaction hash for sell orders.');
     if (!req.file) throw new OrderError('Attach your payment receipt.');
 
     const type = detectReceiptType(req.file.buffer);
@@ -251,6 +359,73 @@ router.post('/:id/receipt', receiptUpload, async (req, res) => {
   }
 });
 
+// POST /api/orders/:id/deposit — sell: "I have sent the crypto".
+// multipart: txHash (required), receipt (optional screenshot), note (optional)
+router.post('/:id/deposit', receiptUpload, async (req, res) => {
+  let receipt;
+  try {
+    const order = await findOwnOrder(req);
+    if (order.type !== 'sell') throw new OrderError('This is not a sell order.');
+
+    const txHash = String(req.body.txHash || '').trim();
+    if (txHash.length < 10 || txHash.length > 200 || /\s/.test(txHash)) {
+      throw new OrderError('Enter the transaction hash (TXID) of your transfer.', 422);
+    }
+    const note = typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 500) : '';
+
+    // Allowed within the deposit window, or to correct details while under review
+    const allowed = ['under_review'];
+    if (order.status === 'awaiting_payment' && order.expiresAt >= new Date()) allowed.push('awaiting_payment');
+    if (!allowed.includes(order.status)) {
+      throw new OrderError(
+        order.status === 'expired'
+          ? 'This order expired before your deposit was confirmed. If you already sent crypto, contact support with your reference.'
+          : 'Deposit details can no longer be submitted for this order.',
+        409
+      );
+    }
+
+    const duplicate = await Order.exists({ _id: { $ne: order._id }, depositTxHash: txHash });
+    if (duplicate) throw new OrderError('That transaction hash has already been used for another order.', 409);
+
+    const set = { depositTxHash: txHash, paymentMarkedAt: order.paymentMarkedAt || new Date() };
+    if (note) set.customerNote = note;
+    if (req.file) {
+      const type = detectReceiptType(req.file.buffer);
+      if (!type) throw new OrderError('Screenshot must be a JPG, PNG, WEBP image or a PDF.');
+      receipt = await Receipt.create({
+        orderId: order._id,
+        userId: req.user.id,
+        filename: `${order.reference}-deposit.${type.ext}`,
+        mimeType: type.mime,
+        size: req.file.size,
+        data: req.file.buffer,
+      });
+      set.receipt = { id: receipt._id, filename: receipt.filename, mimeType: type.mime, size: req.file.size, uploadedAt: new Date() };
+    }
+
+    const previousReceiptId = req.file ? order.receipt?.id : null;
+    const updated = await transition(
+      { _id: order._id },
+      allowed,
+      'under_review',
+      order.status === 'under_review' ? 'Deposit details updated' : 'Customer sent the crypto',
+      set
+    );
+    if (!updated) throw new OrderError('This order changed while submitting. Please refresh and try again.', 409);
+
+    if (previousReceiptId) await Receipt.deleteOne({ _id: previousReceiptId });
+    return res.json({
+      success: true,
+      message: "Thanks! We'll confirm your deposit and pay you shortly.",
+      data: customerView(updated),
+    });
+  } catch (err) {
+    if (receipt) await Receipt.deleteOne({ _id: receipt._id }).catch(() => {});
+    return handleError(res, err, 'Could not submit your deposit.');
+  }
+});
+
 // GET /api/orders/:id/receipt — the user's own receipt file
 router.get('/:id/receipt', async (req, res) => {
   try {
@@ -265,7 +440,9 @@ router.post('/:id/cancel', async (req, res) => {
   try {
     const order = await findOwnOrder(req);
     const updated = await transition({ _id: order._id }, ['awaiting_payment'], 'cancelled', 'Cancelled by customer');
-    if (!updated) throw new OrderError('Only unpaid orders can be cancelled.', 409);
+    if (!updated) {
+      throw new OrderError(order.type === 'sell' ? 'Only orders waiting for your deposit can be cancelled.' : 'Only unpaid orders can be cancelled.', 409);
+    }
     return res.json({ success: true, message: 'Order cancelled.', data: customerView(updated) });
   } catch (err) {
     return handleError(res, err, 'Could not cancel the order.');
