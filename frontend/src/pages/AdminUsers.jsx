@@ -9,7 +9,8 @@ const SORTS = [
   { id: 'recent', label: 'Newest' },
   { id: 'active', label: 'Last order' },
   { id: 'orders', label: 'Most orders' },
-  { id: 'spent', label: 'Most spent' },
+  { id: 'spent', label: 'Most bought' },
+  { id: 'sold', label: 'Most sold' },
 ]
 
 const th = { padding: '12px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
@@ -72,7 +73,8 @@ export default function AdminUsers() {
                 <th style={{ ...th, textAlign: 'right' }}>Orders</th>
                 <th style={{ ...th, textAlign: 'right' }}>Pending</th>
                 <th style={{ ...th, textAlign: 'right' }}>Completed</th>
-                <th style={{ ...th, textAlign: 'right' }}>Total paid</th>
+                <th style={{ ...th, textAlign: 'right' }}>Bought</th>
+                <th style={{ ...th, textAlign: 'right' }}>Sold</th>
                 <th style={{ ...th, textAlign: 'left' }}>Last order</th>
                 <th style={th} />
               </tr>
@@ -80,10 +82,10 @@ export default function AdminUsers() {
             <tbody>
               {loading ? (
                 Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}><td colSpan={8} style={{ padding: '10px 14px' }}><div className="skeleton" style={{ height: 32 }} /></td></tr>
+                  <tr key={i}><td colSpan={9} style={{ padding: '10px 14px' }}><div className="skeleton" style={{ height: 32 }} /></td></tr>
                 ))
               ) : result.data.length === 0 ? (
-                <tr><td colSpan={8} style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>No customers found.</td></tr>
+                <tr><td colSpan={9} style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>No customers found.</td></tr>
               ) : (
                 result.data.map((u) => (
                   <tr key={u.id}>
@@ -96,6 +98,7 @@ export default function AdminUsers() {
                     <td style={{ ...td, textAlign: 'right', color: u.stats.pending ? 'var(--yellow)' : 'var(--text-muted)', fontWeight: u.stats.pending ? 700 : 400 }}>{u.stats.pending}</td>
                     <td style={{ ...td, textAlign: 'right', color: u.stats.completed ? 'var(--green)' : 'var(--text-muted)' }}>{u.stats.completed}</td>
                     <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>{formatNaira(u.stats.spentNgn, 0)}</td>
+                    <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>{formatNaira(u.stats.receivedNgn || 0, 0)}</td>
                     <td style={{ ...td, color: 'var(--text-secondary)', fontSize: 13 }}>{u.stats.lastOrderAt ? formatDate(u.stats.lastOrderAt) : '—'}</td>
                     <td style={{ ...td, textAlign: 'right' }}>
                       {u.stats.total > 0 && (

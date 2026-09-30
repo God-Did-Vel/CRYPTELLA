@@ -6,7 +6,7 @@ import { useCoins } from '../hooks/useCoins'
 import { useRates } from '../hooks/useRates'
 import api from '../utils/api'
 import { formatChange, formatNaira, formatCrypto } from '../utils/format'
-import { ORDER_STATUS } from '../utils/orders'
+import { statusMeta } from '../utils/orders'
 import OrderRow from '../components/OrderRow'
 import OrderStatusBadge from '../components/OrderStatusBadge'
 
@@ -42,10 +42,13 @@ export default function Dashboard() {
               Good {hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}, {user?.firstName} 👋
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-              Buy crypto with naira{rates?.ngnPerUsd ? ` · Today's rate ${formatNaira(rates.ngnPerUsd)} / $1` : ''}
+              Buy and sell crypto with naira{rates?.ngnPerUsd ? ` · Buy ${formatNaira(rates.ngnPerUsd)} / $1` : ''}{rates?.sell?.ngnPerUsd ? ` · Sell ${formatNaira(rates.sell.ngnPerUsd)} / $1` : ''}
             </p>
           </div>
-          <Link to="/markets" className="btn btn-primary"><BarChart2 size={16} /> Buy crypto</Link>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Link to="/markets" className="btn btn-green"><BarChart2 size={16} /> Buy crypto</Link>
+            <Link to="/markets?side=sell" className="btn btn-red"><BarChart2 size={16} /> Sell crypto</Link>
+          </div>
         </div>
       </div>
 
@@ -62,18 +65,20 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {o.image && <img src={o.image} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />}
-                      <span style={{ fontWeight: 700 }}>{formatCrypto(o.cryptoAmount, o.symbol)}</span>
+                      <span style={{ fontWeight: 700 }}>{o.type === 'sell' ? 'Sell' : 'Buy'} {formatCrypto(o.cryptoAmount, o.symbol)}</span>
                     </div>
-                    <OrderStatusBadge status={o.status} size="sm" />
+                    <OrderStatusBadge status={o.status} type={o.type} size="sm" />
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
                     {formatNaira(o.amountNgn)} · {o.reference}
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {o.status === 'awaiting_payment' ? 'Complete payment' : o.status === 'awaiting_receipt' ? 'Upload receipt' : 'View status'}
+                    {o.status === 'awaiting_payment'
+                      ? (o.type === 'sell' ? 'Send your crypto' : 'Complete payment')
+                      : o.status === 'awaiting_receipt' ? 'Upload receipt' : 'View status'}
                     <ArrowRight size={13} />
                   </div>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>{ORDER_STATUS[o.status]?.hint}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>{statusMeta(o.status, o.type).hint}</p>
                 </Link>
               ))}
             </div>
@@ -109,7 +114,7 @@ export default function Dashboard() {
           ) : recent.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
               <ClipboardList size={32} style={{ marginBottom: 12, opacity: 0.4 }} />
-              <p style={{ fontSize: 14 }}>No orders yet. Pick a coin to buy with naira.</p>
+              <p style={{ fontSize: 14 }}>No orders yet. Buy crypto with naira, or sell yours for cash.</p>
               <Link to="/markets" className="btn btn-primary btn-sm" style={{ marginTop: 16, display: 'inline-flex' }}>Browse coins</Link>
             </div>
           ) : (

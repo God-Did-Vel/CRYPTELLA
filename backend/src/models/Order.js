@@ -1,6 +1,18 @@
 /**
  * In-memory Order store.
  * Exposes the same async API the routes expect from the Mongoose model.
+ *
+ * Buy lifecycle:
+ *   awaiting_payment ─ user clicks "I have made payment" ─▶ awaiting_receipt
+ *   awaiting_receipt ─ user uploads the transfer receipt ──▶ under_review
+ *   under_review ───── admin sends the crypto ─────────────▶ completed
+ *   under_review ───── admin can't confirm the payment ────▶ rejected
+ *   awaiting_payment ─ user cancels / payment window ends ─▶ cancelled / expired
+ *
+ * Sell lifecycle (awaiting_payment = waiting for the customer's crypto deposit):
+ *   awaiting_payment ─ user submits the deposit tx hash ───▶ under_review
+ *   under_review ───── admin confirms deposit, pays naira ─▶ completed
+ *   under_review ───── deposit not found / wrong amount ───▶ rejected
  */
 const { v4: uuidv4 } = require('uuid');
 
@@ -87,6 +99,10 @@ const Order = {
   async findById(id) {
     const o = _orders.find((o) => o.id === id || o._id === id);
     return o ? _toDoc(o) : null;
+  },
+
+  async exists(filter = {}) {
+    return !!_orders.find((o) => _match(o, filter));
   },
 
   async findOneAndUpdate(filter, update, opts = {}) {

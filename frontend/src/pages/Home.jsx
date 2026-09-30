@@ -674,7 +674,6 @@ export default function Home() {
               Built for traders who value absolute speed, security, and full sovereignty over their digital assets.
             </p>
           </div>
-
           {/* 6 Boxes Strictly in 3 columns x 2 rows on desktop */}
           <div
             style={{

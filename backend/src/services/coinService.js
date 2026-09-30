@@ -15,7 +15,8 @@
  *  - trades are refused once prices are too old
  */
 const { LISTED_COIN_IDS, getNetworksForCoin } = require('../config/coins');
-const { NGN_PER_USD_OVERRIDE, NGN_CHARGE_PER_USD } = require('../config/orders');
+const { NGN_PER_USD_OVERRIDE, NGN_CHARGE_PER_USD, NGN_SELL_CHARGE_PER_USD } = require('../config/orders');
+const { SELLABLE_COIN_IDS, getSellNetworks } = require('../config/sell');
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -276,9 +277,11 @@ const getNgnPerUsd     = () => {
 const getFxStatus = () => ({
   ngnPerUsd:     getNgnPerUsd(),
   baseNgnPerUsd: getBaseNgnPerUsd(),
-  chargePerUsd:  NGN_CHARGE_PER_USD,
-  source:        NGN_PER_USD_OVERRIDE ? 'fixed' : 'market',
-  updatedAt:     state.fxFetchedAt && !NGN_PER_USD_OVERRIDE
+  chargePerUsd:     NGN_CHARGE_PER_USD,
+  sellNgnPerUsd:    getBaseNgnPerUsd() ? getBaseNgnPerUsd() - NGN_SELL_CHARGE_PER_USD : null,
+  sellChargePerUsd: NGN_SELL_CHARGE_PER_USD,
+  source:           NGN_PER_USD_OVERRIDE ? 'fixed' : 'market',
+  updatedAt:        state.fxFetchedAt && !NGN_PER_USD_OVERRIDE
     ? new Date(state.fxFetchedAt).toISOString()
     : null,
 });
@@ -286,7 +289,9 @@ const getFxStatus = () => ({
 const getCoinById = (coinId) => {
   ensureData();
   const coin = state.byId.get(coinId);
-  return coin ? { ...coin, networks: getNetworksForCoin(coinId) } : null;
+  if (!coin) return null;
+  const sellNetworks = getSellNetworks(coinId);
+  return { ...coin, networks: getNetworksForCoin(coinId), sellable: sellNetworks.length > 0, sellNetworks };
 };
 
 const getBuyQuote = (coinId) => {
@@ -301,6 +306,28 @@ const getBuyQuote = (coinId) => {
   return { coin, ngnPerUsd, baseNgnPerUsd: getBaseNgnPerUsd(), chargePerUsd: NGN_CHARGE_PER_USD };
 };
 
+/**
+ * Price + naira rate for selling a coin, or throws. Returns null if we don't buy it.
+ * The customer gets dollar value − our sell charge per dollar.
+ */
+const getSellQuote = (coinId) => {
+  if (!SELLABLE_COIN_IDS.includes(coinId)) return null;
+  const coin = getCoinById(coinId);
+  if (!coin) return null;
+  if (!isFresh(coin)) throw new PricesUnavailableError();
+  const baseNgnPerUsd = getBaseNgnPerUsd();
+  const fxFresh = NGN_PER_USD_OVERRIDE || (state.fxFetchedAt && Date.now() - state.fxFetchedAt <= MAX_FX_AGE);
+  if (!baseNgnPerUsd || !fxFresh) {
+    throw new PricesUnavailableError('The naira exchange rate is temporarily unavailable. Please try again shortly.');
+  }
+  return {
+    coin,
+    baseNgnPerUsd,
+    chargePerUsd: NGN_SELL_CHARGE_PER_USD,
+    ngnPerUsd: baseNgnPerUsd - NGN_SELL_CHARGE_PER_USD,
+  };
+};
+
 module.exports = {
   startPriceFeed,
   stopPriceFeed,
@@ -310,5 +337,6 @@ module.exports = {
   getNgnPerUsd,
   getFxStatus,
   getBuyQuote,
+  getSellQuote,
   PricesUnavailableError,
 };

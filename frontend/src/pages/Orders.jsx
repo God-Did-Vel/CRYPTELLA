@@ -15,6 +15,7 @@ const FILTERS = [
 
 export default function Orders() {
   const [filter, setFilter] = useState('all')
+  const [type, setType] = useState('all')
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -22,10 +23,10 @@ export default function Orders() {
     setLoading(true)
     const params = filter === 'all' ? { limit: 200 } : { status: filter, limit: 200 }
     api.get('/orders', { params })
-      .then(({ data }) => setOrders(data.data))
+      .then(({ data }) => setOrders(type === 'all' ? data.data : data.data.filter((o) => (o.type || 'buy') === type)))
       .catch(() => setOrders([]))
       .finally(() => setLoading(false))
-  }, [filter])
+  }, [filter, type])
 
   return (
     <div style={{ paddingTop: 68 }}>
@@ -33,14 +34,21 @@ export default function Orders() {
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>My Orders</h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Track your crypto purchases</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Track your crypto purchases and sales</p>
           </div>
-          <Link to="/markets" className="btn btn-primary"><Plus size={16} /> Buy crypto</Link>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Link to="/markets" className="btn btn-green"><Plus size={16} /> Buy</Link>
+            <Link to="/markets?side=sell" className="btn btn-red"><Plus size={16} /> Sell</Link>
+          </div>
         </div>
       </div>
 
       <div className="container" style={{ padding: '28px 24px 48px' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
+          {[['all', 'Buy & sell'], ['buy', 'Buys'], ['sell', 'Sells']].map(([id, label]) => (
+            <button key={id} onClick={() => setType(id)} className={`chip ${type === id ? 'chip-active' : ''}`} aria-pressed={type === id}>{label}</button>
+          ))}
+          <span style={{ width: 1, height: 22, background: 'var(--border)', margin: '0 4px' }} />
           {FILTERS.map((f) => (
             <button key={f.id} onClick={() => setFilter(f.id)} className={`chip ${filter === f.id ? 'chip-active' : ''}`} aria-pressed={filter === f.id}>
               {f.label}

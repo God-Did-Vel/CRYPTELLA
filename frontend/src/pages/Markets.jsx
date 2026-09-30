@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Search, TrendingUp, TrendingDown, RefreshCw, ArrowUpDown, ShoppingCart } from 'lucide-react'
 import { useCoins } from '../hooks/useCoins'
-import { formatPrice, formatChange, formatLargeNumber } from '../utils/format'
+import { useAuth } from '../context/AuthContext'
+import { useRates } from '../hooks/useRates'
+import { formatPrice, formatChange, formatLargeNumber, formatNaira } from '../utils/format'
 import TickerTape from '../components/TickerTape'
 import CoinIcon from '../components/CoinIcon'
 
@@ -14,8 +16,16 @@ const SortIcon = ({ field, current, dir }) => {
 }
 
 export default function Markets() {
-  const { coins, loading, error, refetch } = useCoins(30000)
-  const [search, setSearch]       = useState('')
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const { rates } = useRates()
+  const buyRate = rates?.ngnPerUsd
+  const sellRate = rates?.sell?.ngnPerUsd
+  const { coins: allCoins, loading, error, refetch } = useCoins(30000)
+  const [params] = useSearchParams()
+  const sellMode = params.get('side') === 'sell' && !isAdmin
+  const coins = useMemo(() => (sellMode ? allCoins.filter((c) => c.sellable) : allCoins), [allCoins, sellMode])
+  const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState('marketCap')
   const [sortDir, setSortDir]     = useState('desc')
   const [filter, setFilter]       = useState('all') // all | gainers | losers
@@ -72,9 +82,13 @@ export default function Markets() {
         <div className="container">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
             <div>
-              <h1 style={{ fontSize: 'clamp(22px,4vw,28px)', fontWeight: 800, marginBottom: 4 }}>Live Markets</h1>
+              <h1 style={{ fontSize: 'clamp(22px,4vw,28px)', fontWeight: 800, marginBottom: 4 }}>
+                {sellMode ? 'Sell crypto for naira' : 'Live Markets'}
+              </h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-                {loading ? 'Loading…' : `${coins.length} altcoins • ${gainers} gainers • ${losers} losers`}
+                {loading ? 'Loading…' : sellMode
+                  ? <>Pick the coin you want to sell · <Link to="/markets" style={{ color: 'var(--accent)' }}>show all coins</Link></>
+                  : `${coins.length} altcoins • ${gainers} gainers • ${losers} losers`}
               </p>
             </div>
             <button onClick={refetch} className="btn btn-secondary btn-sm">
@@ -131,13 +145,15 @@ export default function Markets() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', width: 36 }}>#</th>
-                <ThBtn label="Coin"        field="name"       />
-                <ThBtn label="Price"       field="price"      />
-                <ThBtn label="24h"         field="change24h"  />
-                <ThBtn label="Market Cap"  field="marketCap"  />
-                <ThBtn label="Volume 24h"  field="volume24h"  />
-                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>Trade</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', width: 40 }}>#</th>
+                <ThBtn label="Coin" field="name" />
+                <ThBtn label="Price" field="price" />
+                <th className="naira-col" style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: 'var(--green)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>Buy price (₦)</th>
+                <th className="naira-col" style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: 'var(--red)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>Sell price (₦)</th>
+                <ThBtn label="24h Change" field="change24h" />
+                <ThBtn label="Market Cap" field="marketCap" />
+                <ThBtn label="Volume (24h)" field="volume24h" />
+                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -154,7 +170,7 @@ export default function Markets() {
                 : filtered.length === 0
                   ? (
                     <tr>
-                      <td colSpan={7} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <td colSpan={9} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
                         No coins match your search.
                       </td>
                     </tr>
@@ -164,13 +180,12 @@ export default function Markets() {
                       return (
                         <tr
                           key={coin.id}
-                          style={{ borderBottom: '1px solid var(--border-light)', transition: 'background 0.12s' }}
+                          style={{ borderBottom: '1px solid var(--border-light)', transition: 'background 0.15s' }}
                           onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card-hover)'}
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         >
-                          <td style={{ padding: '13px 16px', fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{idx + 1}</td>
-
-                          <td style={{ padding: '13px 16px' }}>
+                          <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{idx + 1}</td>
+                          <td style={{ padding: '14px 16px' }}>
                             <Link to={`/trade/${coin.id}`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
                               <CoinIcon symbol={coin.symbol} name={coin.name} image={coin.image} size={36} />
                               <div>
@@ -179,35 +194,41 @@ export default function Markets() {
                               </div>
                             </Link>
                           </td>
-
-                          <td style={{ padding: '13px 16px', textAlign: 'right', fontWeight: 700, fontSize: 14 }}>
-                            {formatPrice(coin.price)}
+                          <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, fontSize: 14 }}>{formatPrice(coin.price)}</td>
+                          <td className="naira-col" style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+                            {buyRate ? formatNaira(coin.price * buyRate) : '—'}
                           </td>
-
-                          <td style={{ padding: '13px 16px', textAlign: 'right' }}>
+                          <td className="naira-col" style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', color: coin.sellable ? undefined : 'var(--text-muted)' }}>
+                            {coin.sellable && sellRate ? formatNaira(coin.price * sellRate) : '—'}
+                          </td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                             <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              padding: '3px 9px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                              padding: '4px 10px', borderRadius: 20, fontSize: 13, fontWeight: 600,
                               background: positive ? 'var(--green-light)' : 'var(--red-light)',
                               color: positive ? 'var(--green)' : 'var(--red)',
                             }}>
-                              {positive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                              {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                               {formatChange(coin.change24h)}
                             </span>
                           </td>
-
-                          <td style={{ padding: '13px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)' }}>
-                            {formatLargeNumber(coin.marketCap)}
-                          </td>
-
-                          <td style={{ padding: '13px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)' }}>
-                            {formatLargeNumber(coin.volume24h)}
-                          </td>
-
-                          <td style={{ padding: '13px 16px', textAlign: 'center' }}>
-                            <Link to={`/trade/${coin.id}`} className="btn btn-primary btn-sm" style={{ gap: 5 }}>
-                              <ShoppingCart size={12} /> Buy
-                            </Link>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)' }}>{formatLargeNumber(coin.marketCap)}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, color: 'var(--text-secondary)' }}>{formatLargeNumber(coin.volume24h)}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                            {isAdmin ? (
+                              <Link to={`/trade/${coin.id}`} className="btn btn-secondary btn-sm">Details</Link>
+                            ) : (
+                              <div style={{ display: 'inline-flex', gap: 6 }}>
+                                {!sellMode && (
+                                  <Link to={`/trade/${coin.id}`} className="btn btn-primary btn-sm" style={{ gap: 6 }}>
+                                    <ShoppingCart size={13} /> Buy
+                                  </Link>
+                                )}
+                                {coin.sellable && (
+                                  <Link to={`/trade/${coin.id}?side=sell`} className="btn btn-sm" style={{ background: 'var(--red)', color: '#fff' }}>Sell</Link>
+                                )}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )

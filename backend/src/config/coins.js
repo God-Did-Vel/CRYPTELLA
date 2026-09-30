@@ -89,4 +89,4 @@ const validateDestination = (coinId, networkId, address, memo) => {
   return { network: { id: network.id, name: network.name }, address: cleanAddress, memo: cleanMemo || null };
 };
 
-module.exports = { LISTED_COIN_IDS, getNetworksForCoin, validateDestination };
+module.exports = { NETWORKS, LISTED_COIN_IDS, getNetworksForCoin, validateDestination };

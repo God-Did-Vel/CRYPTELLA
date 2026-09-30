@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, Hourglass, Clock, CheckCircle2, TrendingUp, Wallet, ArrowRight, UserPlus } from 'lucide-react'
+import { Users, Hourglass, Clock, CheckCircle2, TrendingUp, TrendingDown, Wallet, ArrowRight, UserPlus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../utils/api'
 import { formatNaira, formatUsd, formatCrypto, formatDate } from '../utils/format'
@@ -43,7 +43,7 @@ export default function AdminOverview() {
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Admin overview</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-              Customer rate {rates?.ngnPerUsd ? `${formatNaira(rates.ngnPerUsd)} / $1` : '—'}
+              Buy rate {rates?.ngnPerUsd ? `${formatNaira(rates.ngnPerUsd)} / $1` : '—'} · Sell rate {rates?.sell?.ngnPerUsd ? `${formatNaira(rates.sell.ngnPerUsd)} / $1` : '—'}
             </p>
           </div>
           <Link to="/admin/orders" className="btn btn-primary">
@@ -55,9 +55,9 @@ export default function AdminOverview() {
       <div className="container" style={{ padding: '28px 24px 48px' }}>
         <h2 className="admin-section">Needs attention</h2>
         <div className="stat-grid">
-          <Stat to="/admin/orders?status=under_review" icon={<Hourglass size={20} />} color="#60A5FA" label="Receipts to review" value={v(o.under_review)} />
+          <Stat to="/admin/orders?status=under_review" icon={<Hourglass size={20} />} color="#60A5FA" label="To review (receipts & deposits)" value={v(o.under_review)} />
           <Stat to="/admin/orders?status=awaiting_receipt" icon={<Clock size={20} />} color="var(--yellow)" label="Awaiting receipt" value={v(o.awaiting_receipt)} />
-          <Stat to="/admin/orders?status=awaiting_payment" icon={<Clock size={20} />} color="var(--yellow)" label="Awaiting payment" value={v(o.awaiting_payment)} />
+          <Stat to="/admin/orders?status=awaiting_payment" icon={<Clock size={20} />} color="var(--yellow)" label="Awaiting payment / deposit" value={v(o.awaiting_payment)} />
         </div>
 
         <h2 className="admin-section">Business</h2>
@@ -65,16 +65,18 @@ export default function AdminOverview() {
           <Stat to="/admin/users" icon={<Users size={20} />} color="var(--accent)" label="Customers" value={v(data?.users)}
             sub={data ? `${data.newUsersThisWeek} joined this week` : null} />
           <Stat to="/admin/orders?status=completed" icon={<CheckCircle2 size={20} />} color="var(--green)" label="Completed orders" value={v(o.completed)}
-            sub={data ? `${data.today.completed} today · ${data.totalOrders} orders in total` : null} />
-          <Stat icon={<TrendingUp size={20} />} color="var(--green)" label="Naira received (completed)" value={data ? formatNaira(data.completed.volumeNgn, 0) : '…'}
-            sub={data ? `${formatUsd(data.completed.volumeUsd)} of crypto · today ${formatNaira(data.today.volumeNgn, 0)}` : null} />
+            sub={data ? `${data.completed.buy.count} buys · ${data.completed.sell.count} sells · ${data.today.completed} today` : null} />
+          <Stat to="/admin/orders?status=completed&type=buy" icon={<TrendingUp size={20} />} color="var(--green)" label="Naira received (buys)" value={data ? formatNaira(data.completed.buy.ngnReceived, 0) : '…'}
+            sub={data ? `${formatUsd(data.completed.buy.usd)} of crypto sent · today ${formatNaira(data.today.ngnReceived, 0)}` : null} />
+          <Stat to="/admin/orders?status=completed&type=sell" icon={<TrendingDown size={20} />} color="var(--red)" label="Naira paid out (sells)" value={data ? formatNaira(data.completed.sell.ngnPaidOut, 0) : '…'}
+            sub={data ? `${formatUsd(data.completed.sell.usd)} of crypto received · today ${formatNaira(data.today.ngnPaidOut, 0)}` : null} />
           <Stat icon={<Wallet size={20} />} color="#EC4899" label="Charges earned" value={data ? formatNaira(data.completed.chargesNgn, 0) : '…'}
             sub={data ? `Today ${formatNaira(data.today.chargesNgn, 0)}` : null} />
         </div>
 
         <div className="card" style={{ marginTop: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 700 }}>Oldest receipts waiting</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 700 }}>Oldest orders waiting for review</h2>
             <Link to="/admin/orders?status=under_review" style={{ fontSize: 13, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
               Review queue <ArrowRight size={13} />
             </Link>
@@ -82,7 +84,7 @@ export default function AdminOverview() {
           {!data ? (
             <div className="skeleton" style={{ height: 120 }} />
           ) : data.needsReview.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: 14, padding: '20px 0', textAlign: 'center' }}>No receipts waiting. You're all caught up.</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14, padding: '20px 0', textAlign: 'center' }}>Nothing waiting for review. You're all caught up.</p>
           ) : (
             data.needsReview.map((ord) => (
               <Link key={ord.id} to={`/admin/orders?status=under_review&q=${ord.reference}`} className="order-row" style={{
@@ -92,7 +94,10 @@ export default function AdminOverview() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                   {ord.image && <img src={ord.image} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />}
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{formatCrypto(ord.cryptoAmount, ord.symbol)} · {formatNaira(ord.amountNgn)}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      <span className={`type-pill type-${ord.type === 'sell' ? 'sell' : 'buy'}`}>{ord.type === 'sell' ? 'SELL' : 'BUY'}</span>
+                      {formatCrypto(ord.cryptoAmount, ord.symbol)} · {formatNaira(ord.amountNgn)}
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{ord.reference} · {ord.userId?.email}</div>
                   </div>
                 </div>

@@ -138,7 +138,7 @@ KRYPTELLA
             </h4>
             {(isAdmin
               ? [['Overview', '/admin'], ['Manage Orders', '/admin/orders'], ['User Management', '/admin/users'], ['Markets', '/markets']]
-              : [['Live Markets', '/markets'], ['Buy Crypto', '/markets'], ['My Orders', '/orders'], ['Customer Dashboard', '/dashboard']]
+              : [['Live Markets', '/markets'], ['Buy Crypto', '/markets'], ['Sell Crypto', '/markets?side=sell'], ['My Orders', '/orders'], ['Customer Dashboard', '/dashboard']]
             ).map(([l, to]) => (
               <Link
                 key={l}

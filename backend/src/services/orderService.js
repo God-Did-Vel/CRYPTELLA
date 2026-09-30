@@ -76,9 +76,10 @@ const detectReceiptType = (buf) => {
   return null;
 };
 
-// Fields only admins should see
-const INTERNAL_FIELDS = ['baseNgnPerUsd', 'chargePerUsd', 'chargeNgn', 'reviewedBy'];
+// Internal pricing fields (our charge) are only shown to admins
+const INTERNAL_FIELDS = ['baseNgnPerUsd', 'chargePerUsd', 'chargeNgn', 'grossNgn', 'reviewedBy'];
 
+/** An order as customers see it: our rate only, without the market rate or our charge. */
 const customerView = (order) => {
   if (Array.isArray(order)) return order.map(customerView);
   const json = typeof order.toJSON === 'function' ? order.toJSON() : { ...order };

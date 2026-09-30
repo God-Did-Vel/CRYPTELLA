@@ -17,6 +17,7 @@ const _users = [
     password: bcrypt.hashSync('Demo1234!', 10),
     role: 'user',
     isVerified: true,
+    payoutAccount: null,
     createdAt: new Date('2026-01-01').toISOString(),
     updatedAt: new Date('2026-01-01').toISOString(),
   },
@@ -95,6 +96,22 @@ const User = {
 
   async countDocuments(filter = {}) {
     return _users.filter((u) => _match(u, filter)).length;
+  },
+
+  async updateOne(filter, update) {
+    const idx = _users.findIndex((u) => _match(u, filter) || u.id === filter._id || u._id === filter._id);
+    if (idx === -1) return { matchedCount: 0, modifiedCount: 0 };
+    if (update.$set) Object.assign(_users[idx], update.$set);
+    _users[idx].updatedAt = new Date().toISOString();
+    return { matchedCount: 1, modifiedCount: 1 };
+  },
+
+  async findByIdAndUpdate(id, update, opts = {}) {
+    const idx = _users.findIndex((u) => u.id === id || u._id === id);
+    if (idx === -1) return null;
+    if (update.$set) Object.assign(_users[idx], update.$set);
+    _users[idx].updatedAt = new Date().toISOString();
+    return _safeUser(_users[idx]);
   },
 
   async find(filter = {}) {
