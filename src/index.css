@@ -1,27 +1,46 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg-primary:    #0B0F1A;
-  --bg-secondary:  #111827;
-  --bg-card:       #1E293B;
-  --bg-card-hover: #243147;
-  --border:        #334155;
-  --border-light:  #1E293B;
-  --text-primary:  #F1F5F9;
+  --bg-primary:    #070B14;
+  --bg-secondary:  #0C1324;
+  --bg-card:       #111C35;
+  --bg-card-hover: #172648;
+  --border:        #1E2E52;
+  --border-light:  #15203B;
+  --text-primary:  #F8FAFC;
   --text-secondary:#94A3B8;
   --text-muted:    #64748B;
   --accent:        #6366F1;
   --accent-hover:  #4F46E5;
-  --accent-light:  rgba(99,102,241,0.12);
+  --accent-light:  rgba(99,102,241,0.14);
   --green:         #10B981;
-  --green-light:   rgba(16,185,129,0.12);
+  --green-light:   rgba(16,185,129,0.14);
   --red:           #EF4444;
-  --red-light:     rgba(239,68,68,0.12);
+  --red-light:     rgba(239,68,68,0.14);
   --yellow:        #F59E0B;
-  --radius:        12px;
-  --radius-sm:     8px;
-  --shadow:        0 4px 24px rgba(0,0,0,0.4);
-  --shadow-lg:     0 8px 40px rgba(0,0,0,0.6);
+  --radius:        14px;
+  --radius-sm:     9px;
+  --radius-xl:     20px;
+  --shadow:        0 4px 24px rgba(0,0,0,0.45);
+  --shadow-lg:     0 12px 48px rgba(0,0,0,0.65);
+
+  /* Kryptella Luxury Glassmorphism Tokens */
+  --deep-midnight: #040711;
+  --deep-sapphire: #091228;
+  --glass-bg: rgba(10, 18, 38, 0.65);
+  --glass-bg-card: rgba(13, 24, 52, 0.7);
+  --glass-bg-hover: rgba(18, 33, 70, 0.85);
+  --glass-border: rgba(56, 189, 248, 0.16);
+  --glass-border-bright: rgba(99, 102, 241, 0.4);
+  --glass-glow: 0 8px 32px 0 rgba(0, 102, 255, 0.18);
+  --glass-glow-gold: 0 8px 32px 0 rgba(245, 158, 11, 0.22);
+  --glass-blur: blur(20px);
+  --luxury-gold: #F59E0B;
+  --luxury-gold-light: #FDE68A;
+  --luxury-gold-gradient: linear-gradient(135deg, #F59E0B 0%, #FBBF24 50%, #D97706 100%);
+  --deep-blue-gradient: linear-gradient(135deg, #040711 0%, #0A1633 50%, #071024 100%);
+  --sapphire-gradient: linear-gradient(135deg, #091228 0%, #13224B 50%, #0C1A38 100%);
+  --hero-glow: radial-gradient(circle at 50% 30%, rgba(99, 102, 241, 0.22), rgba(14, 165, 233, 0.08) 55%, transparent 75%);
 }
 
 html { scroll-behavior: smooth; }
@@ -133,3 +152,257 @@ input, select, textarea { font-family: inherit; }
 /* Glow pulse */
 @keyframes glow { 0%,100% { box-shadow: 0 0 20px rgba(99,102,241,0.3); } 50% { box-shadow: 0 0 40px rgba(99,102,241,0.6); } }
 .glow-pulse { animation: glow 3s ease-in-out infinite; }
+
+/* Order flow */
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.chip {
+  padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+  background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary);
+  cursor: pointer; transition: all 0.15s;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip-active, .chip-active:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+.order-row:hover { background: var(--bg-card-hover); }
+
+.pending-card {
+  display: block; padding: 16px; border-radius: 10px; text-decoration: none;
+  background: var(--bg-secondary); border: 1px solid var(--border); transition: border-color 0.15s;
+}
+.pending-card:hover { border-color: var(--accent); }
+
+.quick-coin {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 10px;
+  background: var(--bg-secondary); border: 1px solid var(--border); text-decoration: none; transition: all 0.2s;
+}
+.quick-coin:hover { border-color: var(--accent); background: var(--accent-light); }
+
+.notice {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px;
+  background: var(--bg-secondary); border: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+}
+.notice-warn { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.4); color: var(--yellow); }
+
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 16px; font-size: 14px; }
+.admin-label { font-size: 12px; color: var(--text-muted); margin-bottom: 2px; }
+
+@media (max-width: 900px) {
+  .trade-grid { grid-template-columns: 1fr !important; }
+  .trade-panel { position: static !important; }
+  .admin-grid { grid-template-columns: 1fr; }
+}
+
+/* Admin */
+.admin-section { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin: 8px 0 12px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-link { text-decoration: none; display: block; }
+.stat-link .card { transition: border-color 0.15s; }
+.stat-link:hover .card { border-color: var(--accent); }
+
+/* =========================================================
+   KRYPTELLA LUXURY GLASSMORPHISM DESIGN SYSTEM
+========================================================= */
+
+/* Glass Buttons */
+.btn-glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #F8FAFC;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-glass:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(99, 102, 241, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.25);
+  color: #FFFFFF;
+}
+
+.btn-glass-primary {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.82) 0%, rgba(99, 102, 241, 0.9) 50%, rgba(59, 130, 246, 0.85) 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(165, 180, 252, 0.35);
+  color: #FFFFFF !important;
+  box-shadow: 0 6px 24px rgba(79, 70, 229, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-glass-primary:hover {
+  background: linear-gradient(135deg, rgba(67, 56, 202, 0.95) 0%, rgba(79, 70, 229, 0.98) 50%, rgba(37, 99, 235, 0.95) 100%);
+  border-color: rgba(199, 210, 254, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(99, 102, 241, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.btn-glass-secondary {
+  background: rgba(13, 24, 52, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #E2E8F0;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-glass-secondary:hover {
+  background: rgba(22, 38, 78, 0.85);
+  border-color: rgba(99, 102, 241, 0.45);
+  transform: translateY(-2px);
+  color: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.btn-glass-gold {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.9) 0%, rgba(217, 119, 6, 0.95) 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(253, 230, 138, 0.6);
+  color: #0B0F1A !important;
+  font-weight: 700;
+  box-shadow: 0 6px 24px rgba(245, 158, 11, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-glass-gold:hover {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 1) 0%, rgba(245, 158, 11, 1) 100%);
+  border-color: #FEF3C7;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(245, 158, 11, 0.55);
+}
+
+/* Glass Cards & Panels */
+.card-glass {
+  background: var(--glass-bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.card-glass::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  pointer-events: none;
+}
+.card-glass:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-bright);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), 0 0 25px rgba(99, 102, 241, 0.15);
+}
+
+.luxury-glow-badge {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(14, 165, 233, 0.12));
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.2);
+  color: #A5B4FC;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Directional Slide & Pop-Up Animations */
+@keyframes slideFromTop {
+  0% {
+    opacity: 0;
+    transform: translateY(-70px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideFromLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-70px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slideFromBottom {
+  0% {
+    opacity: 0;
+    transform: translateY(70px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes popUp {
+  0% {
+    opacity: 0;
+    transform: scale(0.82) translateY(24px);
+  }
+  70% {
+    transform: scale(1.03) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.slide-from-top {
+  animation: slideFromTop 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.slide-from-left {
+  animation: slideFromLeft 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.slide-from-bottom {
+  animation: slideFromBottom 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.pop-up {
+  animation: popUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Continuous Infinite Testimonials Marquee */
+@keyframes marqueeScroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-container {
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+  padding: 12px 0;
+}
+
+.marquee-track {
+  display: flex;
+  gap: 24px;
+  width: max-content;
+  animation: marqueeScroll 45s linear infinite;
+  will-change: transform;
+}
+
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+

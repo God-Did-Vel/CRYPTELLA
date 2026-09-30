@@ -1,9 +1,10 @@
-const mongoose = require('mongoose');
-
+/**
+ * No-op database connector.
+ * MongoDB has been replaced with an in-memory store (see src/models/index.js).
+ * This file exists so nothing that requires it breaks.
+ */
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/cryptella';
-  await mongoose.connect(uri);
-  console.log(`🍃 MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
+  console.log('💾 Using in-memory database (no MongoDB required)');
 };
 
 module.exports = connectDB;
