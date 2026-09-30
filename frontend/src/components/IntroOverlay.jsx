@@ -139,7 +139,7 @@ export default function IntroOverlay({ isOpen, onClose, imageUrl = CLOUDINARY_IM
           </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: 20, color: '#FFFFFF', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
-              Kryptella
+              KRYPTELLA
             </div>
             <div style={{ fontSize: 11, fontWeight: 600, color: '#93C5FD', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Direct Settlement Platform
