@@ -27,6 +27,10 @@ import HelpCenter from './pages/HelpCenter'
 import ContactUs from './pages/ContactUs'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
+import AboutUs from './pages/AboutUs'
+import HowItWorks from './pages/HowItWorks'
+import WhyUs from './pages/WhyUs'
+import ScrollToTop from './components/ScrollToTop'
 
 // Pages that don't need the footer
 const NO_FOOTER = ['/login', '/register']
@@ -39,15 +43,8 @@ const HomeRoute = () => {
 
 function MainLayout() {
   const location = useLocation()
-  const [showIntro, setShowIntro] = useState(() => {
-    // Show on initial visit per session, or if requested via URL
-    if (typeof window !== 'undefined') {
-      const search = window.location.search
-      if (search.includes('intro=1')) return true
-      return !sessionStorage.getItem('kryptella_intro_dismissed')
-    }
-    return true
-  })
+  // Show intro every single time the screen/page is refreshed or loaded
+  const [showIntro, setShowIntro] = useState(true)
 
   useEffect(() => {
     if (location.search.includes('intro=1')) {
@@ -56,7 +53,6 @@ function MainLayout() {
   }, [location.search])
 
   const handleCloseIntro = () => {
-    sessionStorage.setItem('kryptella_intro_dismissed', 'true')
     setShowIntro(false)
   }
 
@@ -64,7 +60,7 @@ function MainLayout() {
 
   return (
     <>
-      {/* Intro / Splash Screen Overlay */}
+      {/* Intro / Splash Screen Overlay (Shows every time screen is refreshed) */}
       <IntroOverlay isOpen={showIntro} onClose={handleCloseIntro} />
 
       <Navbar />
@@ -82,7 +78,10 @@ function MainLayout() {
         <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
         <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
 
-        {/* 4 Dedicated Luxury Crypto Pages */}
+        {/* Dedicated Luxury Crypto Pages */}
+        <Route path="/about" element={<AboutUs />} />
+        <Route path="/how-it-works" element={<HowItWorks />} />
+        <Route path="/why-us" element={<WhyUs />} />
         <Route path="/help" element={<HelpCenter />} />
         <Route path="/contact" element={<ContactUs />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -90,6 +89,9 @@ function MainLayout() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
+
+      {/* Floating Scroll To Top Arrow Button */}
+      <ScrollToTop />
 
       {!hideFooter && <Footer />}
     </>

@@ -272,7 +272,6 @@ input, select, textarea { font-family: inherit; }
   box-shadow: 0 10px 32px rgba(245, 158, 11, 0.55);
 }
 
-/* Glass Cards & Panels */
 .card-glass {
   background: var(--glass-bg-card);
   backdrop-filter: blur(16px);
@@ -282,6 +281,8 @@ input, select, textarea { font-family: inherit; }
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 .card-glass::before {
   content: '';
@@ -428,9 +429,11 @@ body {
 }
 
 /* ── Navbar ─────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+@media (max-width: 880px) {
   .nav-links        { display: none !important; }
+  .nav-auth-desktop { display: none !important; }
   .hamburger        { display: block !important; }
+  .hamburger-btn    { display: flex !important; }
 }
 
 /* ── Hero / Home ────────────────────────────────────────────── */

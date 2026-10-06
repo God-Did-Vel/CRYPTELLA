@@ -46,16 +46,70 @@ export default function Login() {
     }}>
       <div style={{ width: '100%', maxWidth: 440 }} className="fade-in">
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 16,
-            background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 900, fontSize: 26, color: '#fff',
-            margin: '0 auto 16px', boxShadow: '0 0 24px rgba(99,102,241,0.4)',
-          }}>C</div>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <Link
+            to="/"
+            style={{
+              display: 'inline-flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textDecoration: 'none',
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 18,
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                boxShadow: '0 0 30px rgba(245, 158, 11, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 6,
+                transition: 'transform 0.25s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            >
+              <img
+                src="https://res.cloudinary.com/duweg8kpv/image/upload/v1790775110/k-logo-good-removebg-preview_c50puh.png"
+                alt="Kryptella Logo"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 0 10px rgba(245, 158, 11, 0.5))',
+                }}
+              />
+            </div>
+            <span
+              style={{
+                fontWeight: 900,
+                letterSpacing: '0.04em',
+                fontSize: 22,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ color: '#FFFFFF' }}>KRYP</span>
+              <span
+                style={{
+                  color: '#F59E0B',
+                  background: 'linear-gradient(135deg, #FDE68A 0%, #F59E0B 50%, #D97706 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                TELLA
+              </span>
+            </span>
+          </Link>
           <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 6 }}>Welcome back</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>Sign in to your Cryptella account</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>Sign in to your Kryptella account</p>
         </div>
 
         <div className="card" style={{ boxShadow: 'var(--shadow-lg)' }}>
