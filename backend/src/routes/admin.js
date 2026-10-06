@@ -1,10 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { protect, adminOnly }     = require('../middleware/auth');
-const { Order, User }            = require('../models');
-const {
-  OrderError, transition, expireStaleOrders, isObjectId, sendReceipt,
-} = require('../services/orderService');
+const { protect, adminOnly } = require('../middleware/auth');
+const { Order, User } = require('../models');
+const { OrderError, transition, expireStaleOrders, isObjectId, sendReceipt } = require('../services/orderService');
 
 const router = express.Router();
 router.use(protect, adminOnly);
@@ -15,6 +13,15 @@ const handleError = (res, err, fallback) => {
   return res.status(500).json({ success: false, message: fallback });
 };
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const findOrder = async (id) => {
+  if (!isObjectId(id)) throw new OrderError('Order not found.', 404);
+  const order = await Order.findById(id).populate('userId', 'firstName lastName email');
+  if (!order) throw new OrderError('Order not found.', 404);
+  return order;
+};
+
 const validate = (req, res) => {
   const errors = validationResult(req);
   if (errors.isEmpty()) return true;
@@ -22,18 +29,18 @@ const validate = (req, res) => {
   return false;
 };
 
-const findOrder = async (id) => {
-  if (!isObjectId(id)) throw new OrderError('Order not found.', 404);
-  const order = await Order.findById(id);
-  if (!order) throw new OrderError('Order not found.', 404);
-  return order;
+const startOfToday = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
 };
 
-// GET /api/admin/overview
+// GET /api/admin/overview — headline numbers for the admin dashboard
 router.get('/overview', async (req, res) => {
   try {
     await expireStaleOrders();
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const today = startOfToday();
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const [users, newUsersThisWeek, statusRows, completedTotals, completedToday, needsReview] = await Promise.all([
       User.countDocuments({ role: { $ne: 'admin' } }),
@@ -41,11 +48,11 @@ router.get('/overview', async (req, res) => {
       Order.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
       Order.aggregate([
         { $match: { status: 'completed' } },
-        { $group: { _id: null, volumeNgn: { $sum: '$amountNgn' }, volumeUsd: { $sum: '$amountUsd' }, chargesNgn: { $sum: { $ifNull: ['$chargeNgn', 0] } } } },
+        { $group: { _id: { $ifNull: ['$type', 'buy'] }, count: { $sum: 1 }, volumeNgn: { $sum: '$amountNgn' }, volumeUsd: { $sum: '$amountUsd' }, chargesNgn: { $sum: { $ifNull: ['$chargeNgn', 0] } } } },
       ]),
       Order.aggregate([
         { $match: { status: 'completed', completedAt: { $gte: today } } },
-        { $group: { _id: null, count: { $sum: 1 }, volumeNgn: { $sum: '$amountNgn' }, chargesNgn: { $sum: { $ifNull: ['$chargeNgn', 0] } } } },
+        { $group: { _id: { $ifNull: ['$type', 'buy'] }, count: { $sum: 1 }, volumeNgn: { $sum: '$amountNgn' }, chargesNgn: { $sum: { $ifNull: ['$chargeNgn', 0] } } } },
       ]),
       Order.find({ status: 'under_review' }).sort({ updatedAt: 1 }).limit(5).populate('userId', 'firstName lastName email'),
     ]);
@@ -54,18 +61,28 @@ router.get('/overview', async (req, res) => {
     statusRows.forEach((r) => {
       orders[r._id] = r.count;
     });
-    const all = completedTotals[0] || {};
-    const day = completedToday[0] || {};
+    const pick = (rows, type) => rows.find((r) => r._id === type) || {};
+    const sum = (rows, key) => rows.reduce((t, r) => t + (r[key] || 0), 0);
+    const [buys, sells, buysToday, sellsToday] = [pick(completedTotals, 'buy'), pick(completedTotals, 'sell'), pick(completedToday, 'buy'), pick(completedToday, 'sell')];
 
     return res.json({
       success: true,
       data: {
-        users:           allUsers.length,
+        users,
         newUsersThisWeek,
         orders,
         totalOrders: Object.values(orders).reduce((a, b) => a + b, 0),
-        completed: { volumeNgn: all.volumeNgn || 0, volumeUsd: all.volumeUsd || 0, chargesNgn: all.chargesNgn || 0 },
-        today: { completed: day.count || 0, volumeNgn: day.volumeNgn || 0, chargesNgn: day.chargesNgn || 0 },
+        completed: {
+          buy: { count: buys.count || 0, ngnReceived: buys.volumeNgn || 0, usd: buys.volumeUsd || 0 },
+          sell: { count: sells.count || 0, ngnPaidOut: sells.volumeNgn || 0, usd: sells.volumeUsd || 0 },
+          chargesNgn: sum(completedTotals, 'chargesNgn'),
+        },
+        today: {
+          completed: sum(completedToday, 'count'),
+          ngnReceived: buysToday.volumeNgn || 0,
+          ngnPaidOut: sellsToday.volumeNgn || 0,
+          chargesNgn: sum(completedToday, 'chargesNgn'),
+        },
         needsReview,
       },
     });
@@ -74,126 +91,141 @@ router.get('/overview', async (req, res) => {
   }
 });
 
-// GET /api/admin/users
+// GET /api/admin/users?q=&sort=recent|orders|spent&page= — customers with their order counts
 router.get('/users', async (req, res) => {
   try {
     await expireStaleOrders();
-    let users = await User.find({ role: { $ne: 'admin' } });
+    const match = { role: { $ne: 'admin' } };
     const { q } = req.query;
     if (q && String(q).trim()) {
-      const lq = String(q).trim().toLowerCase();
-      users = users.filter((u) =>
-        (u.email || '').toLowerCase().includes(lq) ||
-        (u.firstName || '').toLowerCase().includes(lq) ||
-        (u.lastName || '').toLowerCase().includes(lq)
-      );
+      const rx = new RegExp(escapeRegex(String(q).trim()), 'i');
+      match.$or = [{ email: rx }, { firstName: rx }, { lastName: rx }];
     }
 
-    const allOrders = await Order.find({});
-    const pending = Order.PENDING_STATUSES;
-    const enrichedUsers = users.map((u) => {
-      const uId = u.id || u._id;
-      const userOrders = allOrders.filter((o) => o.userId === uId);
-      const completedOrders = userOrders.filter((o) => o.status === 'completed');
-      const spentNgn = completedOrders.filter((o) => o.type !== 'sell').reduce((s, o) => s + (o.amountNgn || 0), 0);
-      const receivedNgn = completedOrders.filter((o) => o.type === 'sell').reduce((s, o) => s + (o.amountNgn || 0), 0);
-      const lastOrderAt = userOrders.reduce((latest, o) => (!latest || (o.createdAt || '') > latest ? o.createdAt : latest), null);
-      return {
-        ...u,
-        stats: {
-          total: userOrders.length,
-          pending: userOrders.filter((o) => pending.includes(o.status)).length,
-          completed: completedOrders.length,
-          spentNgn,
-          receivedNgn,
-          lastOrderAt,
-        },
-      };
-    });
-
-    const sortKey = req.query.sort || 'recent';
-    if (sortKey === 'orders') enrichedUsers.sort((a, b) => b.stats.total - a.stats.total);
-    else if (sortKey === 'spent') enrichedUsers.sort((a, b) => b.stats.spentNgn - a.stats.spentNgn);
-    else if (sortKey === 'sold') enrichedUsers.sort((a, b) => b.stats.receivedNgn - a.stats.receivedNgn);
-    else if (sortKey === 'active') enrichedUsers.sort((a, b) => (b.stats.lastOrderAt || '').localeCompare(a.stats.lastOrderAt || ''));
-    else enrichedUsers.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-
+    const sorts = {
+      recent: { createdAt: -1 },
+      orders: { 'stats.total': -1, createdAt: -1 },
+      spent: { 'stats.spentNgn': -1, createdAt: -1 },
+      sold: { 'stats.receivedNgn': -1, createdAt: -1 },
+      active: { 'stats.lastOrderAt': -1, createdAt: -1 },
+    };
+    const sort = sorts[req.query.sort] || sorts.recent;
     const limit = 25;
-    const page  = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const total = enrichedUsers.length;
-    const data  = enrichedUsers.slice((page - 1) * limit, page * limit);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
 
+    const pending = Order.PENDING_STATUSES;
+    const [rows, total] = await Promise.all([
+      User.aggregate([
+        { $match: match },
+        {
+          $lookup: {
+            from: 'orders',
+            localField: '_id',
+            foreignField: 'userId',
+            as: 'orders',
+            pipeline: [{ $project: { status: 1, type: 1, amountNgn: 1, createdAt: 1 } }],
+          },
+        },
+        {
+          $addFields: {
+            stats: {
+              total: { $size: '$orders' },
+              pending: { $size: { $filter: { input: '$orders', cond: { $in: ['$$this.status', pending] } } } },
+              completed: { $size: { $filter: { input: '$orders', cond: { $eq: ['$$this.status', 'completed'] } } } },
+              spentNgn: {
+                $sum: {
+                  $map: {
+                    input: { $filter: { input: '$orders', cond: { $and: [{ $eq: ['$$this.status', 'completed'] }, { $ne: ['$$this.type', 'sell'] }] } } },
+                    in: '$$this.amountNgn',
+                  },
+                },
+              },
+              receivedNgn: {
+                $sum: {
+                  $map: {
+                    input: { $filter: { input: '$orders', cond: { $and: [{ $eq: ['$$this.status', 'completed'] }, { $eq: ['$$this.type', 'sell'] }] } } },
+                    in: '$$this.amountNgn',
+                  },
+                },
+              },
+              lastOrderAt: { $max: '$orders.createdAt' },
+            },
+          },
+        },
+        { $project: { orders: 0, password: 0, __v: 0 } },
+        { $sort: sort },
+        { $skip: (page - 1) * limit },
+        { $limit: limit },
+      ]),
+      User.countDocuments(match),
+    ]);
+
+    const data = rows.map(({ _id, ...u }) => ({ id: _id.toString(), ...u }));
     return res.json({ success: true, data, page, pages: Math.max(Math.ceil(total / limit), 1), total });
   } catch (err) {
     return handleError(res, err, 'Failed to fetch users.');
   }
 });
 
-// GET /api/admin/users/:id
+// GET /api/admin/users/:id — one customer and all their orders
 router.get('/users/:id', async (req, res) => {
   try {
     if (!isObjectId(req.params.id)) throw new OrderError('User not found.', 404);
     const user = await User.findById(req.params.id);
     if (!user) throw new OrderError('User not found.', 404);
-    const orders = await Order.find({ userId: req.params.id }).sort({ createdAt: -1 }).limit(200);
+    const orders = await Order.find({ userId: user._id }).sort({ createdAt: -1 });
     return res.json({ success: true, data: { user, orders } });
   } catch (err) {
     return handleError(res, err, 'Failed to fetch the user.');
   }
 });
 
-// GET /api/admin/orders/stats
+// GET /api/admin/orders/stats — order counts per status
 router.get('/orders/stats', async (req, res) => {
   try {
     await expireStaleOrders();
-    const allOrders = await Order.find({});
+    const rows = await Order.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]);
     const counts = Object.fromEntries(Order.STATUSES.map((s) => [s, 0]));
-    allOrders.forEach((o) => { if (counts[o.status] !== undefined) counts[o.status]++; });
+    rows.forEach((r) => {
+      counts[r._id] = r.count;
+    });
     return res.json({ success: true, data: counts });
   } catch (err) {
     return handleError(res, err, 'Failed to fetch stats.');
   }
 });
 
-// GET /api/admin/orders
+// GET /api/admin/orders?status=under_review&q=search&page=1
 router.get('/orders', async (req, res) => {
   try {
     await expireStaleOrders();
-    let allOrders = await Order.find({});
-
+    const filter = {};
     const { status, q } = req.query;
-    if (status === 'pending')                  allOrders = allOrders.filter((o) => Order.PENDING_STATUSES.includes(o.status));
-    else if (Order.STATUSES.includes(status))  allOrders = allOrders.filter((o) => o.status === status);
-    if (req.query.user)                        allOrders = allOrders.filter((o) => o.userId === req.query.user);
-    if (['buy', 'sell'].includes(req.query.type)) allOrders = allOrders.filter((o) => (o.type || 'buy') === req.query.type);
+    if (status === 'pending') filter.status = { $in: Order.PENDING_STATUSES };
+    else if (Order.STATUSES.includes(status)) filter.status = status;
+    if (req.query.user && isObjectId(req.query.user)) filter.userId = req.query.user;
+    if (['buy', 'sell'].includes(req.query.type)) filter.type = req.query.type;
 
     if (q && String(q).trim()) {
-      const lq = String(q).trim().toLowerCase();
-      allOrders = allOrders.filter((o) =>
-        (o.reference || '').toLowerCase().includes(lq) ||
-        (o.walletAddress || '').toLowerCase().includes(lq) ||
-        (o.txHash || '').toLowerCase().includes(lq) ||
-        (o.depositTxHash || '').toLowerCase().includes(lq) ||
-        (o.payoutReference || '').toLowerCase().includes(lq) ||
-        (o.payoutAccount?.accountNumber || '').toLowerCase().includes(lq) ||
-        (o.payoutAccount?.accountName || '').toLowerCase().includes(lq)
-      );
+      const rx = new RegExp(escapeRegex(String(q).trim()), 'i');
+      const users = await User.find({ $or: [{ email: rx }, { firstName: rx }, { lastName: rx }] })
+        .select('_id')
+        .limit(200);
+      filter.$or = [
+        { reference: rx }, { walletAddress: rx }, { txHash: rx }, { depositTxHash: rx }, { payoutReference: rx },
+        { 'payoutAccount.accountNumber': rx }, { 'payoutAccount.accountName': rx }, { userId: { $in: users.map((u) => u._id) } },
+      ];
     }
 
-    // Review queues: oldest first; everything else: newest first
-    const reviewMode = status === 'under_review' || status === 'pending';
-    allOrders.sort((a, b) => {
-      const av = a[reviewMode ? 'updatedAt' : 'createdAt'] || '';
-      const bv = b[reviewMode ? 'updatedAt' : 'createdAt'] || '';
-      return reviewMode ? (av < bv ? -1 : 1) : (av > bv ? -1 : 1);
-    });
-
     const limit = 25;
-    const page  = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const total = allOrders.length;
-    const data  = allOrders.slice((page - 1) * limit, page * limit);
-
-    return res.json({ success: true, data, page, pages: Math.max(Math.ceil(total / limit), 1), total });
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    // Review queues are oldest first (first come, first served); everything else newest first
+    const sort = status === 'under_review' || status === 'pending' ? { updatedAt: 1 } : { createdAt: -1 };
+    const [orders, total] = await Promise.all([
+      Order.find(filter).sort(sort).skip((page - 1) * limit).limit(limit).populate('userId', 'firstName lastName email'),
+      Order.countDocuments(filter),
+    ]);
+    return res.json({ success: true, data: orders, page, pages: Math.max(Math.ceil(total / limit), 1), total });
   } catch (err) {
     return handleError(res, err, 'Failed to fetch orders.');
   }
@@ -217,48 +249,45 @@ router.get('/orders/:id/receipt', async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/:id/complete
+// POST /api/admin/orders/:id/complete { txHash } — naira received and crypto sent
 // Buy: { txHash } of the crypto we sent. Sell: { payoutReference } of the naira transfer we made.
 router.post('/orders/:id/complete', async (req, res) => {
-  try {
-    const order = await findOrder(req.params.id);
-    const isSell = order.type === 'sell';
-    const proof = String((isSell ? req.body.payoutReference : req.body.txHash) || '').trim();
-    if (isSell ? proof.length < 4 || proof.length > 100 : proof.length < 8 || proof.length > 200) {
-      throw new OrderError(isSell ? 'Enter the bank transfer reference for the payout.' : 'Enter the blockchain transaction hash.', 422);
+    try {
+      const order = await findOrder(req.params.id);
+      const isSell = order.type === 'sell';
+      const proof = String((isSell ? req.body.payoutReference : req.body.txHash) || '').trim();
+      if (isSell ? proof.length < 4 || proof.length > 100 : proof.length < 8 || proof.length > 200) {
+        throw new OrderError(isSell ? 'Enter the bank transfer reference for the payout.' : 'Enter the blockchain transaction hash.', 422);
+      }
+      const updated = await transition(
+        { _id: order._id },
+        Order.PENDING_STATUSES,
+        'completed',
+        isSell
+          ? `Deposit confirmed and ₦${order.amountNgn.toLocaleString('en-NG')} paid to ${order.payoutAccount?.bankName}`
+          : `Payment confirmed and ${order.cryptoAmount} ${order.symbol} sent`,
+        { ...(isSell ? { payoutReference: proof } : { txHash: proof }), reviewedBy: req.user.id, completedAt: new Date() }
+      );
+      if (!updated) throw new OrderError(`This order is already ${order.status.replace(/_/g, ' ')}.`, 409);
+      return res.json({ success: true, message: `Order ${order.reference} completed.`, data: updated });
+    } catch (err) {
+      return handleError(res, err, 'Could not complete the order.');
     }
-    const updated = await transition(
-      { id: order.id },
-      Order.PENDING_STATUSES,
-      'completed',
-      isSell
-        ? `Deposit confirmed and ₦${Number(order.amountNgn).toLocaleString('en-NG')} paid to ${order.payoutAccount?.bankName || 'bank'}`
-        : `Payment confirmed and ${order.cryptoAmount} ${order.symbol} sent`,
-      { ...(isSell ? { payoutReference: proof } : { txHash: proof }), reviewedBy: req.user.id, completedAt: new Date().toISOString() }
-    );
-    if (!updated) throw new OrderError(`This order is already ${(order.status || '').replace(/_/g, ' ')}.`, 409);
-    return res.json({ success: true, message: `Order ${order.reference} completed.`, data: updated });
-  } catch (err) {
-    return handleError(res, err, 'Could not complete the order.');
-  }
 });
 
-// POST /api/admin/orders/:id/reject
+// POST /api/admin/orders/:id/reject { reason }
 router.post(
   '/orders/:id/reject',
   [body('reason').isString().trim().isLength({ min: 3, max: 500 }).withMessage('Give the customer a reason.')],
   async (req, res) => {
     if (!validate(req, res)) return;
     try {
-      const order   = await findOrder(req.params.id);
-      const updated = await transition(
-        { id: order.id },
-        Order.PENDING_STATUSES,
-        'rejected',
-        req.body.reason,
-        { rejectionReason: req.body.reason, reviewedBy: req.user.id }
-      );
-      if (!updated) throw new OrderError(`This order is already ${(order.status || '').replace(/_/g, ' ')}.`, 409);
+      const order = await findOrder(req.params.id);
+      const updated = await transition({ _id: order._id }, Order.PENDING_STATUSES, 'rejected', req.body.reason, {
+        rejectionReason: req.body.reason,
+        reviewedBy: req.user.id,
+      });
+      if (!updated) throw new OrderError(`This order is already ${order.status.replace(/_/g, ' ')}.`, 409);
       return res.json({ success: true, message: `Order ${order.reference} rejected.`, data: updated });
     } catch (err) {
       return handleError(res, err, 'Could not reject the order.');
