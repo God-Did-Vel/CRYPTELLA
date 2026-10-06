@@ -172,19 +172,13 @@ KRYPTELLA
               Company
             </h4>
             {[
-              ['About Us', '/#about', 'about'],
-              ['How It Works', '/#how-it-works', 'how-it-works'],
-              ['Why Kryptella', '/#why-us', 'why-us'],
-            ].map(([l, to, id]) => (
+              ['About Us', '/about'],
+              ['How It Works', '/how-it-works'],
+              ['Why Kryptella', '/why-us'],
+            ].map(([l, to]) => (
               <Link
                 key={l}
                 to={to}
-                onClick={() => {
-                  if (window.location.pathname === '/') {
-                    const el = document.getElementById(id);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }}
                 style={{
                   display: 'block',
                   color: 'var(--text-secondary)',

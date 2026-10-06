@@ -52,6 +52,42 @@ function MainLayout() {
     }
   }, [location.search])
 
+  // Ensure every time a user navigates to any page (from navbar, footer, buttons, etc.),
+  // the page immediately starts at the top, not down
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual'
+    }
+
+    if (location.hash) {
+      const targetId = location.hash.replace('#', '')
+      const el = document.getElementById(targetId)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+    }
+
+    // Immediately start at the very top of the page
+    const originalScrollBehavior = document.documentElement.style.scrollBehavior
+    document.documentElement.style.scrollBehavior = 'auto'
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    document.documentElement.scrollTop = 0
+    document.body.scrollTop = 0
+    document.documentElement.style.scrollBehavior = originalScrollBehavior
+
+    // Ensure it sticks after component paint
+    const rafId = requestAnimationFrame(() => {
+      document.documentElement.style.scrollBehavior = 'auto'
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+      document.documentElement.style.scrollBehavior = originalScrollBehavior
+    })
+
+    return () => cancelAnimationFrame(rafId)
+  }, [location.pathname, location.search, location.hash, location.key])
+
   const handleCloseIntro = () => {
     setShowIntro(false)
   }
