@@ -107,7 +107,7 @@ KRYPTELLA
               {[
                 { icon: <ShieldCheck size={16} />, title: 'Bank-Grade Security' },
                 { icon: <Zap size={16} />, title: 'Sub-Minute Dispatch' },
-                { icon: <Globe size={16} />, title: '20+ Altcoins Supported' },
+                { icon: <Globe size={16} />, title: '8 Top Coins Supported' },
               ].map((item, i) => (
                 <div
                   key={i}

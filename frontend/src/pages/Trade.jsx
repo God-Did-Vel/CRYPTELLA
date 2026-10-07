@@ -110,22 +110,33 @@ export default function Trade() {
   const rate    = rates?.ngnPerUsd ?? null
   const network = coin?.networks?.find(n => n.id === networkId)
 
-  // Derive NGN / USD / crypto amounts from whatever the user typed
+  const feeUsd = rates?.buyFeeUsd ?? 0
+
+  // Derive NGN / USD / crypto amounts from whatever the user typed.
+  // The flat fee comes off the dollar value: crypto = (naira ÷ rate − fee) ÷ price
   const quote = useMemo(() => {
     const value = parseFloat(amount)
     if (!coin || !rate || !value || value <= 0) return null
-    const amountNgn    = mode === 'ngn' ? value : value * coin.price * rate
-    const amountUsd    = amountNgn / rate
-    const cryptoAmount = amountUsd / coin.price
-    return { amountNgn, amountUsd, cryptoAmount }
-  }, [amount, mode, coin, rate])
+    let amountNgn, amountUsd
+    if (mode === 'ngn') {
+      amountNgn = value
+      amountUsd = amountNgn / rate - feeUsd
+    } else {
+      amountUsd = value * coin.price
+      amountNgn = (amountUsd + feeUsd) * rate
+    }
+    const cryptoAmount = Math.max(amountUsd, 0) / coin.price
+    return { amountNgn, amountUsd, cryptoAmount, feeNgn: feeUsd * rate, tooSmall: amountUsd <= 0 }
+  }, [amount, mode, coin, rate, feeUsd])
 
   const limitError = quote && rates
     ? quote.amountNgn > rates.maxOrderNgn
       ? `Maximum per order is ${formatNaira(rates.maxOrderNgn)} (≈ ${formatUsd(rates.maxOrderUsd)})`
       : quote.amountNgn < rates.minOrderNgn
         ? `Minimum order is ${formatNaira(rates.minOrderNgn)}`
-        : null
+        : quote.tooSmall
+          ? `Amount is too small to cover the $${feeUsd} fee`
+          : null
     : null
 
   const switchMode = () => {
@@ -144,7 +155,7 @@ export default function Trade() {
     setAmount(
       mode === 'ngn'
         ? String(rates.maxOrderNgn)
-        : String(parseFloat((rates.maxOrderUsd / coin.price).toFixed(8)))
+        : String(parseFloat((Math.max(rates.maxOrderUsd - feeUsd, 0) / coin.price).toFixed(8)))
     )
   }
 
@@ -498,7 +509,10 @@ export default function Trade() {
                 padding: '14px 16px', margin: '20px 0 16px',
               }}>
                 <SummaryRow label="Rate"         value={rate ? `1 ${coin.symbol} ≈ ${formatNaira(coin.price * rate)}` : '—'} />
-                <SummaryRow label="Dollar value" value={quote ? formatUsd(quote.amountUsd) : '—'} />
+                <SummaryRow label="Dollar value" value={quote ? formatUsd(Math.max(quote.amountUsd, 0)) : '—'} />
+                {feeUsd > 0 && (
+                  <SummaryRow label="Fee" value={`${formatUsd(feeUsd)}${rate ? ` (${formatNaira(feeUsd * rate)})` : ''}`} />
+                )}
                 <SummaryRow label="Network"      value={network?.name || '—'} />
                 <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
                 <SummaryRow strong label="You pay"     value={quote ? formatNaira(quote.amountNgn) : '—'} />

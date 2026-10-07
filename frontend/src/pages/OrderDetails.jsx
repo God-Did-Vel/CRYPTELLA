@@ -409,6 +409,7 @@ export default function OrderDetails() {
                   <Row label="You pay">{formatNaira(order.amountNgn)}</Row>
                   <Row label="You receive">{formatCrypto(order.cryptoAmount, order.symbol)}</Row>
                   <Row label="Dollar value">{formatUsd(order.amountUsd)}</Row>
+                  {order.feeUsd > 0 && <Row label="Fee">{formatUsd(order.feeUsd)} ({formatNaira(order.feeNgn)})</Row>}
                   <Row label={`${order.symbol} price`}>{formatPrice(order.priceUsd)}</Row>
                   <Row label="Rate">{formatNaira(order.ngnPerUsd)} / $1</Row>
                 </>
