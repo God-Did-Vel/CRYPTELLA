@@ -1,33 +1,20 @@
+const mongoose = require('mongoose');
+
 /**
- * In-memory Receipt store.
- * Stores binary file buffers in memory — fine for development / small scale.
- * For production, swap the _store array for S3/GridFS writes.
+ * Payment receipt uploaded by a customer. Stored in MongoDB (files are capped
+ * at 5 MB, well under the 16 MB document limit) and only served through
+ * authenticated endpoints — never publicly.
  */
-const { v4: uuidv4 } = require('uuid');
-
-const _receipts = [];
-
-const Receipt = {
-  async create({ orderId, userId, filename, mimeType, size, data }) {
-    const id = uuidv4();
-    const now = new Date().toISOString();
-    const receipt = { id, _id: id, orderId, userId, filename, mimeType, size, data, createdAt: now };
-    _receipts.push(receipt);
-    return receipt;
+const receiptSchema = new mongoose.Schema(
+  {
+    orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    filename: { type: String, required: true },
+    mimeType: { type: String, required: true },
+    size: { type: Number, required: true },
+    data: { type: Buffer, required: true },
   },
+  { timestamps: true }
+);
 
-  async findById(id) {
-    return _receipts.find((r) => r.id === id || r._id === id) || null;
-  },
-
-  async deleteOne(filter) {
-    const idx = _receipts.findIndex((r) => {
-      if (filter._id) return r.id === filter._id || r._id === filter._id;
-      return false;
-    });
-    if (idx !== -1) _receipts.splice(idx, 1);
-    return { deletedCount: idx !== -1 ? 1 : 0 };
-  },
-};
-
-module.exports = Receipt;
+module.exports = mongoose.model('Receipt', receiptSchema);

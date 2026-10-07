@@ -1,6 +1,9 @@
+const mongoose = require('mongoose');
+const toJSON = require('./toJSON');
+
 /**
- * In-memory Order store.
- * Exposes the same async API the routes expect from the Mongoose model.
+ * A buy order (customer pays naira, we send crypto) or a sell order
+ * (customer sends crypto, we pay naira).
  *
  * Buy lifecycle:
  *   awaiting_payment ─ user clicks "I have made payment" ─▶ awaiting_receipt
@@ -14,166 +17,99 @@
  *   under_review ───── admin confirms deposit, pays naira ─▶ completed
  *   under_review ───── deposit not found / wrong amount ───▶ rejected
  */
-const { v4: uuidv4 } = require('uuid');
-
 const STATUSES = ['awaiting_payment', 'awaiting_receipt', 'under_review', 'completed', 'rejected', 'cancelled', 'expired'];
 const PENDING_STATUSES = ['awaiting_payment', 'awaiting_receipt', 'under_review'];
 
-const _orders = [];
+const orderSchema = new mongoose.Schema(
+  {
+    reference: { type: String, required: true, unique: true },
+    type: { type: String, enum: ['buy', 'sell'], default: 'buy', index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-const _toDoc = (o) => ({
-  ...o,
-  toJSON: () => {
-    const { toJSON, ...rest } = o;
-    return rest;
+    // The coin being bought or sold
+    coinId: { type: String, required: true },
+    symbol: { type: String, required: true },
+    name: String,
+    image: String,
+
+    // Buy: the customer's wallet we send to. Sell: the network they deposit on.
+    network: { id: { type: String, required: true }, name: { type: String, required: true } },
+    walletAddress: { type: String, required() { return this.type !== 'sell'; } },
+    memo: { type: String, default: null },
+
+    // Sell: our deposit address, the customer's proof, and where we pay them
+    deposit: {
+      address: String,
+      memo: String, // destination tag / memo that identifies this order
+      memoLabel: String,
+    },
+    depositTxHash: { type: String, default: null },
+    payoutAccount: {
+      bankName: String,
+      accountNumber: String,
+      accountName: String,
+    },
+    grossNgn: Number, // sell: market value of the crypto before our charge
+    payoutReference: { type: String, default: null }, // sell: our bank transfer reference
+
+    // Quote, locked when the order is created
+    amountNgn: { type: Number, required: true }, // buy: naira paid in; sell: naira paid out (after charge)
+    ngnPerUsd: { type: Number, required: true }, // customer rate: buy = dollar value + charge, sell = dollar value − charge
+    baseNgnPerUsd: Number, // dollar value in naira before our charge
+    chargePerUsd: Number, // our charge per dollar (₦)
+    chargeNgn: Number, // our total charge on this order (₦)
+    amountUsd: { type: Number, required: true },
+    priceUsd: { type: Number, required: true },
+    cryptoAmount: { type: Number, required: true },
+
+    // Naira account the customer transfers to
+    paymentAccount: {
+      provider: String,
+      bankName: String,
+      accountNumber: String,
+      accountName: String,
+      narration: String,
+    },
+    expiresAt: { type: Date, required: true },
+
+    status: { type: String, enum: STATUSES, default: 'awaiting_payment', index: true },
+    paymentMarkedAt: Date,
+    receipt: {
+      id: { type: mongoose.Schema.Types.ObjectId, ref: 'Receipt' },
+      filename: String,
+      mimeType: String,
+      size: Number,
+      uploadedAt: Date,
+    },
+    customerNote: { type: String, default: null },
+
+    // Admin outcome
+    txHash: { type: String, default: null },
+    rejectionReason: { type: String, default: null },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    completedAt: Date,
+
+    history: [
+      {
+        _id: false,
+        status: { type: String, enum: STATUSES },
+        at: { type: Date, default: Date.now },
+        note: String,
+      },
+    ],
   },
-});
+  { timestamps: true, toJSON }
+);
 
-const _matchField = (docVal, filterVal) => {
-  if (filterVal === null || filterVal === undefined) return docVal == null;
-  if (filterVal instanceof RegExp) return filterVal.test(docVal ?? '');
-  if (typeof filterVal === 'object') {
-    if ('$in'  in filterVal) return filterVal.$in.includes(docVal);
-    if ('$nin' in filterVal) return !filterVal.$nin.includes(docVal);
-    if ('$ne'  in filterVal) return docVal !== filterVal.$ne;
-    if ('$lt'  in filterVal) return docVal < filterVal.$lt;
-    if ('$lte' in filterVal) return docVal <= filterVal.$lte;
-    if ('$gt'  in filterVal) return docVal > filterVal.$gt;
-    if ('$gte' in filterVal) return docVal >= filterVal.$gte;
-  }
-  return docVal === filterVal;
+orderSchema.index({ userId: 1, createdAt: -1 });
+orderSchema.index({ status: 1, expiresAt: 1 });
+
+orderSchema.methods.setStatus = function setStatus(status, note) {
+  this.status = status;
+  this.history.push({ status, at: new Date(), note });
 };
 
-const _match = (doc, filter) =>
-  Object.entries(filter).every(([k, v]) => {
-    if (k === '$or') return v.some((cond) => _match(doc, cond));
-    return _matchField(doc[k], v);
-  });
+orderSchema.statics.STATUSES = STATUSES;
+orderSchema.statics.PENDING_STATUSES = PENDING_STATUSES;
 
-const _sort = (arr, sortObj) => {
-  const entries = Object.entries(sortObj || {});
-  if (!entries.length) return arr;
-  return [...arr].sort((a, b) => {
-    for (const [k, dir] of entries) {
-      const av = a[k], bv = b[k];
-      if (av < bv) return dir === 1 ? -1 : 1;
-      if (av > bv) return dir === 1 ? 1 : -1;
-    }
-    return 0;
-  });
-};
-
-// ── Chainable query builder (mirrors mongoose Query) ─────────────────────────
-class Query {
-  constructor(docs) { this._docs = docs; this._sortObj = null; this._skip = 0; this._limit = Infinity; }
-  sort(s)  { this._sortObj = s; return this; }
-  skip(n)  { this._skip = n;   return this; }
-  limit(n) { this._limit = n;  return this; }
-  populate() { return this; } // no-op: we embed what we need
-  select()   { return this; }
-
-  then(res, rej) {
-    try {
-      let docs = _sort(this._docs, this._sortObj);
-      docs = docs.slice(this._skip, this._skip + this._limit);
-      res(docs.map(_toDoc));
-    } catch (e) { rej(e); }
-  }
-}
-
-// ── model API ─────────────────────────────────────────────────────────────────
-const Order = {
-  STATUSES,
-  PENDING_STATUSES,
-
-  find(filter = {}) {
-    return new Query(_orders.filter((o) => _match(o, filter)));
-  },
-
-  async findOne(filter = {}) {
-    const o = _orders.find((o) => _match(o, filter));
-    return o ? _toDoc(o) : null;
-  },
-
-  async findById(id) {
-    const o = _orders.find((o) => o.id === id || o._id === id);
-    return o ? _toDoc(o) : null;
-  },
-
-  async exists(filter = {}) {
-    return !!_orders.find((o) => _match(o, filter));
-  },
-
-  async findOneAndUpdate(filter, update, opts = {}) {
-    const idx = _orders.findIndex((o) => _match(o, filter));
-    if (idx === -1) return null;
-
-    const order = { ..._orders[idx] };
-
-    if (update.$set) Object.assign(order, update.$set);
-    if (update.$push) {
-      const [field, val] = Object.entries(update.$push)[0];
-      if (!Array.isArray(order[field])) order[field] = [];
-      order[field] = [...order[field], val];
-    }
-
-    order.updatedAt = new Date().toISOString();
-    _orders[idx] = order;
-    return opts.new ? _toDoc(order) : _toDoc(_orders[idx]);
-  },
-
-  async updateMany(filter, update) {
-    let modifiedCount = 0;
-    _orders.forEach((o, idx) => {
-      if (!_match(o, filter)) return;
-      const order = { ..._orders[idx] };
-      if (update.$set) Object.assign(order, update.$set);
-      if (update.$push) {
-        const [field, val] = Object.entries(update.$push)[0];
-        if (!Array.isArray(order[field])) order[field] = [];
-        order[field] = [...order[field], val];
-      }
-      order.updatedAt = new Date().toISOString();
-      _orders[idx] = order;
-      modifiedCount++;
-    });
-    return { modifiedCount };
-  },
-
-  async create(data) {
-    const id = uuidv4();
-    const now = new Date().toISOString();
-    const order = {
-      id,
-      _id: id,
-      ...data,
-      userId: data.userId,
-      createdAt: now,
-      updatedAt: now,
-    };
-    // Ensure history array exists
-    if (!Array.isArray(order.history)) order.history = [];
-    _orders.push(order);
-    return _toDoc(order);
-  },
-
-  async countDocuments(filter = {}) {
-    return _orders.filter((o) => _match(o, filter)).length;
-  },
-
-  // Stub for admin aggregate — returns flat counts
-  async aggregate(pipeline) {
-    // Only the $group stage is used in admin routes
-    const groupStage = pipeline.find((s) => s.$group)?.$group;
-    if (!groupStage) return [];
-    if (groupStage._id === '$status') {
-      const counts = {};
-      _orders.forEach((o) => { counts[o.status] = (counts[o.status] || 0) + 1; });
-      return Object.entries(counts).map(([_id, count]) => ({ _id, count }));
-    }
-    return [];
-  },
-};
-
-module.exports = Order;
+module.exports = mongoose.model('Order', orderSchema);
