@@ -90,7 +90,7 @@ router.post(
 
       const quote = getBuyQuote(req.body.coinId);
       if (!quote) throw new OrderError('This coin is not available to buy.', 404);
-      const { coin, ngnPerUsd, baseNgnPerUsd, chargePerUsd } = quote;
+      const { coin, ngnPerUsd, baseNgnPerUsd, chargePerUsd, feeUsd, rateSource } = quote;
 
       let destination;
       try {
@@ -108,9 +108,14 @@ router.post(
         );
       }
 
-      const amountUsd = round(amountNgn / ngnPerUsd, 2);
-      const cryptoAmount = round(amountNgn / ngnPerUsd / coin.price, 8);
-      const chargeNgn = round((amountNgn / ngnPerUsd) * chargePerUsd, 2);
+      // The flat fee comes off the dollar value the customer pays for
+      const grossUsd = amountNgn / ngnPerUsd;
+      const netUsd = grossUsd - feeUsd;
+      if (netUsd <= 0) throw new OrderError(`Amount is too small to cover the $${feeUsd} fee.`);
+      const amountUsd = round(netUsd, 2);
+      const cryptoAmount = round(netUsd / coin.price, 8);
+      const feeNgn = round(feeUsd * ngnPerUsd, 2);
+      const chargeNgn = round(grossUsd * chargePerUsd + feeNgn, 2);
       if (cryptoAmount <= 0) throw new OrderError('Amount is too small.');
 
       // Retry on the (very unlikely) chance of a duplicate reference
@@ -134,6 +139,9 @@ router.post(
             baseNgnPerUsd,
             chargePerUsd,
             chargeNgn,
+            feeUsd,
+            feeNgn,
+            rateSource,
             amountUsd,
             priceUsd: coin.price,
             cryptoAmount,
@@ -182,7 +190,7 @@ router.post(
     try {
       const quote = getSellQuote(req.body.coinId);
       if (!quote) throw new OrderError('This coin cannot be sold on Cryptella.', 404);
-      const { coin, baseNgnPerUsd, chargePerUsd, ngnPerUsd } = quote;
+      const { coin, baseNgnPerUsd, chargePerUsd, ngnPerUsd, rateSource } = quote;
 
       const deposit = getDepositAddress(coin.id, req.body.networkId);
       if (!deposit) throw new OrderError(`We don't accept ${coin.symbol} on that network.`, 422);
@@ -238,6 +246,7 @@ router.post(
             grossNgn,
             chargeNgn,
             amountNgn,
+            rateSource,
             expiresAt: new Date(Date.now() + SELL_DEPOSIT_WINDOW_MINUTES * 60 * 1000),
             status: 'awaiting_payment',
             history: [{ status: 'awaiting_payment', note: 'Sell order created' }],

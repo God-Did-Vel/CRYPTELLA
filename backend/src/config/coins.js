@@ -1,14 +1,11 @@
 /**
- * Coins that can be bought on Cryptella, and the networks we can send them on.
+ * Coins that can be bought and sold on Cryptella, and the networks we send them on.
  *
- * Selection rule (reviewed Sept 2026): the 20 largest coins by market cap that
- *  - are listed on Bybit spot against USDT,
- *  - trade at least $100M/day across all exchanges,
- *  - are not memecoins (CoinGecko "meme-token" category),
- *  - and are not stablecoins, except USDT and USDC.
+ * Current list (Oct 2026): BTC, ETH, USDT, BNB, XRP, USDC, SOL, TRX.
+ * Selling uses the same coins — see config/sell.js for our deposit addresses.
  *
  * To add or remove a coin, edit COIN_NETWORKS; the key is the last part of the
- * coin's CoinGecko URL (e.g. coingecko.com/en/coins/avalanche-2).
+ * coin's CoinGecko URL (e.g. coingecko.com/en/coins/binancecoin).
  */
 
 // Address formats. These catch typos and wrong-network addresses before an
@@ -44,18 +41,6 @@ const COIN_NETWORKS = {
   'usd-coin': ['ERC20', 'BEP20', 'SOL', 'BASE', 'ARBITRUM'],
   solana: ['SOL'],
   tron: ['TRC20'],
-  hyperliquid: ['HYPEREVM'],
-  chainlink: ['ERC20', 'BEP20'],
-  cardano: ['ADA'],
-  stellar: ['XLM'],
-  'bitcoin-cash': ['BCH'],
-  uniswap: ['ERC20'],
-  near: ['NEAR'],
-  litecoin: ['LTC'],
-  'avalanche-2': ['AVAXC'],
-  'hedera-hashgraph': ['HBAR'],
-  sui: ['SUI'],
-  aave: ['ERC20'],
 };
 
 const LISTED_COIN_IDS = Object.keys(COIN_NETWORKS);

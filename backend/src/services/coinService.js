@@ -2,10 +2,11 @@
  * Live coin price service (CoinGecko).
  *
  * Prices are never fetched per request. A single background job fetches the
- * listed coins (see config/coins.js) in ONE CoinGecko call per interval, plus
- * the USD→NGN rate once an hour. Results are kept in memory and persisted to
- * MongoDB, and every API request is served from that cache, so CoinGecko
- * traffic stays constant no matter how many users are online.
+ * listed coins' USD prices (see config/coins.js) in ONE CoinGecko call per
+ * interval. Results are kept in memory and persisted to MongoDB, and every API
+ * request is served from that cache, so CoinGecko traffic stays constant no
+ * matter how many users are online. Naira rates come from P2P markets
+ * (services/p2pService.js).
  *
  * Rate-limit safety:
  *  - one refresh at a time, on an interval sized to the CoinGecko plan's quota
@@ -16,11 +17,10 @@
  */
 const { MarketSnapshot } = require('../models');
 const { LISTED_COIN_IDS, getNetworksForCoin } = require('../config/coins');
-const { NGN_PER_USD_OVERRIDE, NGN_CHARGE_PER_USD, NGN_SELL_CHARGE_PER_USD } = require('../config/orders');
+const { BUY_CHARGE_NGN_PER_USD, BUY_FEE_USD, SELL_CHARGE_NGN_PER_USD } = require('../config/orders');
+const { getP2PRates, getCustomerRates } = require('./p2pService');
 const { SELLABLE_COIN_IDS, getSellNetworks } = require('../config/sell');
 
-const FX_REFRESH_INTERVAL = 60 * 60 * 1000; // naira rate moves slowly; saves quota
-const MAX_FX_AGE = 6 * 60 * 60 * 1000;
 const MAX_BACKOFF = 30 * 60 * 1000;
 const REQUEST_TIMEOUT = 15 * 1000;
 
@@ -32,10 +32,9 @@ const API_KEY = process.env.COINGECKO_API_KEY || '';
 const PLAN = API_KEY ? (process.env.COINGECKO_API_PLAN || 'demo').toLowerCase() : 'public';
 
 // Minimum/default refresh interval (seconds) per plan, sized to stay under quota.
-// Each refresh is one CoinGecko call (+1 call/hour for the naira rate).
+// Each refresh is one CoinGecko call.
 //  public: no key, ~5-15 calls/min shared per IP → 1 call/min is safe
 //  demo:   30 calls/min but 10,000 calls/month → 1 call / 5 min ≈ 8,640/month
-//          + 720 naira-rate calls ≈ 9,360/month
 //  pro:    paid plans with large quotas
 const PLAN_LIMITS = {
   public: { min: 60, default: 60 },
@@ -67,8 +66,6 @@ const state = {
   coins: [], // listed coins, by market cap
   byId: new Map(),
   fetchedAt: null,
-  ngnPerUsd: null, // market rate, before our charge
-  fxFetchedAt: null,
   blockedUntil: null,
   failures: 0,
 };
@@ -123,23 +120,6 @@ const toCoin = (c, now) => ({
   priceUpdatedAt: now,
 });
 
-// USD→NGN from CoinGecko's BTC-denominated exchange rates. Non-fatal on
-// failure (except rate limiting): the previous rate stays in use.
-const refreshFx = async (now) => {
-  if (NGN_PER_USD_OVERRIDE) return;
-  if (state.fxFetchedAt && now - state.fxFetchedAt < FX_REFRESH_INTERVAL) return;
-  try {
-    const { rates } = await cgFetch('/exchange_rates', {});
-    const ngnPerUsd = rates?.ngn?.value / rates?.usd?.value;
-    if (!Number.isFinite(ngnPerUsd) || ngnPerUsd <= 0) throw new Error('No NGN rate in response');
-    state.ngnPerUsd = ngnPerUsd;
-    state.fxFetchedAt = now;
-  } catch (err) {
-    if (err instanceof RateLimitedError) throw err;
-    console.warn('Naira rate refresh failed:', err.message);
-  }
-};
-
 // ---------------------------------------------------------------------------
 // Refresh
 // ---------------------------------------------------------------------------
@@ -168,13 +148,9 @@ const doRefresh = async () => {
   state.coins = coins;
   state.byId = new Map(state.coins.map((c) => [c.id, c]));
   state.fetchedAt = now;
-
-  await refreshFx(now);
-
   state.failures = 0;
   state.blockedUntil = null;
-  const rate = getNgnPerUsd();
-  console.log(`💹 Prices refreshed: ${coins.length} coins, ${rate ? `₦${rate.toFixed(2)}/$` : 'no naira rate'}`);
+  console.log(`💹 Prices refreshed: ${coins.length} coins`);
 };
 
 const persist = () =>
@@ -183,8 +159,6 @@ const persist = () =>
     {
       coins: state.coins,
       fetchedAt: state.fetchedAt,
-      ngnPerUsd: state.ngnPerUsd,
-      fxFetchedAt: state.fxFetchedAt,
       blockedUntil: state.blockedUntil,
     },
     { upsert: true }
@@ -236,13 +210,10 @@ const startPriceFeed = async () => {
     state.coins = (snap.coins || []).filter((c) => LISTED_COIN_IDS.includes(c.id));
     state.byId = new Map(state.coins.map((c) => [c.id, c]));
     state.fetchedAt = snap.fetchedAt ? snap.fetchedAt.getTime() : null;
-    state.ngnPerUsd = snap.ngnPerUsd || null;
-    state.fxFetchedAt = snap.fxFetchedAt ? snap.fxFetchedAt.getTime() : null;
     state.blockedUntil = snap.blockedUntil ? snap.blockedUntil.getTime() : null;
 
-    // Listing changed, or no naira rate yet → refresh as soon as allowed
+    // Listing changed → refresh as soon as allowed
     if (LISTED_COIN_IDS.some((id) => !state.byId.has(id))) state.fetchedAt = null;
-    if (!state.ngnPerUsd && !NGN_PER_USD_OVERRIDE) state.fetchedAt = null;
   }
 
   console.log(
@@ -276,24 +247,20 @@ const getMarketStatus = () => ({
   stale: !state.fetchedAt || Date.now() - state.fetchedAt > MAX_TRADE_PRICE_AGE,
 });
 
-// Dollar value in naira before our charge (fixed override, or live market rate)
-const getBaseNgnPerUsd = () => NGN_PER_USD_OVERRIDE || state.ngnPerUsd || null;
+// Customer naira rates (P2P price ± our charges). Kept in the old shape for callers.
+const getNgnPerUsd = () => getCustomerRates().buy;
 
-// Naira per dollar customers pay: dollar value + our charge
-const getNgnPerUsd = () => {
-  const base = getBaseNgnPerUsd();
-  return base ? base + NGN_CHARGE_PER_USD : null;
+const getFxStatus = () => {
+  const rates = getCustomerRates();
+  return {
+    available: rates.available,
+    ngnPerUsd: rates.buy, // customer buy rate
+    sellNgnPerUsd: rates.sell, // customer sell rate
+    buyFeeUsd: rates.buyFeeUsd,
+    source: rates.p2p.source,
+    updatedAt: rates.p2p.updatedAt,
+  };
 };
-
-const getFxStatus = () => ({
-  ngnPerUsd: getNgnPerUsd(),
-  baseNgnPerUsd: getBaseNgnPerUsd(),
-  chargePerUsd: NGN_CHARGE_PER_USD,
-  sellNgnPerUsd: getBaseNgnPerUsd() ? getBaseNgnPerUsd() - NGN_SELL_CHARGE_PER_USD : null,
-  sellChargePerUsd: NGN_SELL_CHARGE_PER_USD,
-  source: NGN_PER_USD_OVERRIDE ? 'fixed' : 'market',
-  updatedAt: state.fxFetchedAt && !NGN_PER_USD_OVERRIDE ? new Date(state.fxFetchedAt).toISOString() : null,
-});
 
 const getCoinById = (coinId) => {
   ensureData();
@@ -303,41 +270,45 @@ const getCoinById = (coinId) => {
   return { ...coin, networks: getNetworksForCoin(coinId), sellable: sellNetworks.length > 0, sellNetworks };
 };
 
+const RATES_UNAVAILABLE = 'Naira rates are temporarily unavailable. Please try again shortly.';
+
 /**
- * Coin price + naira rate that are safe to quote an order at, or throws.
+ * Coin price + naira rate that are safe to quote a buy order at, or throws.
  * Returns null if the coin is not listed.
  */
 const getBuyQuote = (coinId) => {
   const coin = getCoinById(coinId);
   if (!coin) return null;
   if (!isFresh(coin)) throw new PricesUnavailableError();
-  const ngnPerUsd = getNgnPerUsd();
-  const fxFresh = NGN_PER_USD_OVERRIDE || (state.fxFetchedAt && Date.now() - state.fxFetchedAt <= MAX_FX_AGE);
-  if (!ngnPerUsd || !fxFresh) {
-    throw new PricesUnavailableError('The naira exchange rate is temporarily unavailable. Please try again shortly.');
-  }
-  return { coin, ngnPerUsd, baseNgnPerUsd: getBaseNgnPerUsd(), chargePerUsd: NGN_CHARGE_PER_USD };
+  const p2p = getP2PRates();
+  if (!p2p.available) throw new PricesUnavailableError(RATES_UNAVAILABLE);
+  return {
+    coin,
+    ngnPerUsd: p2p.buy + BUY_CHARGE_NGN_PER_USD,
+    baseNgnPerUsd: p2p.buy,
+    chargePerUsd: BUY_CHARGE_NGN_PER_USD,
+    feeUsd: BUY_FEE_USD,
+    rateSource: p2p.source,
+  };
 };
 
 /**
  * Price + naira rate for selling a coin, or throws. Returns null if we don't buy it.
- * The customer gets dollar value − our sell charge per dollar.
+ * The customer gets the P2P sell price − our sell charge per dollar.
  */
 const getSellQuote = (coinId) => {
   if (!SELLABLE_COIN_IDS.includes(coinId)) return null;
   const coin = getCoinById(coinId);
   if (!coin) return null;
   if (!isFresh(coin)) throw new PricesUnavailableError();
-  const baseNgnPerUsd = getBaseNgnPerUsd();
-  const fxFresh = NGN_PER_USD_OVERRIDE || (state.fxFetchedAt && Date.now() - state.fxFetchedAt <= MAX_FX_AGE);
-  if (!baseNgnPerUsd || !fxFresh) {
-    throw new PricesUnavailableError('The naira exchange rate is temporarily unavailable. Please try again shortly.');
-  }
+  const p2p = getP2PRates();
+  if (!p2p.available) throw new PricesUnavailableError(RATES_UNAVAILABLE);
   return {
     coin,
-    baseNgnPerUsd,
-    chargePerUsd: NGN_SELL_CHARGE_PER_USD,
-    ngnPerUsd: baseNgnPerUsd - NGN_SELL_CHARGE_PER_USD,
+    baseNgnPerUsd: p2p.sell,
+    chargePerUsd: SELL_CHARGE_NGN_PER_USD,
+    ngnPerUsd: p2p.sell - SELL_CHARGE_NGN_PER_USD,
+    rateSource: p2p.source,
   };
 };
 

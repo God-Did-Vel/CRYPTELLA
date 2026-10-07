@@ -6,8 +6,8 @@ const router = express.Router();
 
 // GET /api/rates — naira rate and order limits for the buy form
 router.get('/', (req, res) => {
-  // Customers only see our buy and sell rates (our charge is already in them)
-  const { baseNgnPerUsd, chargePerUsd, sellNgnPerUsd, sellChargePerUsd, ...fx } = getFxStatus();
+  // Customers only see our buy and sell rates (our per-dollar charges are already in them)
+  const { sellNgnPerUsd, ...fx } = getFxStatus();
   const toUsd = (ngn) => (fx.ngnPerUsd ? parseFloat((ngn / fx.ngnPerUsd).toFixed(2)) : null);
   return res.json({
     success: true,
@@ -17,6 +17,7 @@ router.get('/', (req, res) => {
       maxOrderNgn: MAX_ORDER_NGN,
       minOrderUsd: toUsd(MIN_ORDER_NGN),
       maxOrderUsd: toUsd(MAX_ORDER_NGN),
+      buyFeeNgn: fx.ngnPerUsd ? parseFloat((fx.buyFeeUsd * fx.ngnPerUsd).toFixed(2)) : null,
       paymentWindowMinutes: PAYMENT_WINDOW_MINUTES,
       sell: {
         ngnPerUsd: sellNgnPerUsd,

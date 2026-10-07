@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const { protect, adminOnly } = require('../middleware/auth');
 const { Order, User } = require('../models');
 const { OrderError, transition, expireStaleOrders, isObjectId, sendReceipt } = require('../services/orderService');
+const { getAdminRateStatus, updateRateSettings } = require('../services/p2pService');
 
 const router = express.Router();
 router.use(protect, adminOnly);
@@ -34,6 +35,21 @@ const startOfToday = () => {
   d.setHours(0, 0, 0, 0);
   return d;
 };
+
+// GET /api/admin/rates — P2P prices, mode and charges
+router.get('/rates', (req, res) => res.json({ success: true, data: getAdminRateStatus() }));
+
+// PUT /api/admin/rates { mode?: 'auto'|'manual', manualBuy?, manualSell? }
+router.put('/rates', async (req, res) => {
+  try {
+    const { mode, manualBuy, manualSell } = req.body || {};
+    const hasManual = manualBuy !== undefined && manualBuy !== '' && manualSell !== undefined && manualSell !== '';
+    const data = await updateRateSettings({ mode, ...(hasManual && { manualBuy, manualSell }) }, req.user.email);
+    return res.json({ success: true, message: 'Naira rate settings saved.', data });
+  } catch (err) {
+    return res.status(422).json({ success: false, message: err.message });
+  }
+});
 
 // GET /api/admin/overview — headline numbers for the admin dashboard
 router.get('/overview', async (req, res) => {
