@@ -14,6 +14,7 @@ import {
 import CoinIcon from '../components/CoinIcon'
 import toast from 'react-hot-toast'
 import SellPanel from '../components/SellPanel'
+import { buyFeeFor, paidForValue, describeFeeTiers } from '../utils/fees'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -110,33 +111,38 @@ export default function Trade() {
   const rate    = rates?.ngnPerUsd ?? null
   const network = coin?.networks?.find(n => n.id === networkId)
 
-  const feeUsd = rates?.buyFeeUsd ?? 0
+  const feeTiers = rates?.buyFeeTiers
+  const minUsd = rates?.minOrderUsd ?? 5
 
-  // Derive NGN / USD / crypto amounts from whatever the user typed.
-  // The flat fee comes off the dollar value: crypto = (naira ÷ rate − fee) ÷ price
+  // Derive the breakdown from whatever the user typed. The purchase amount is
+  // what they pay in dollars at our rate; the fee for that amount comes off it,
+  // and the rest is the crypto they receive.
   const quote = useMemo(() => {
     const value = parseFloat(amount)
     if (!coin || !rate || !value || value <= 0) return null
-    let amountNgn, amountUsd
-    if (mode === 'ngn') {
-      amountNgn = value
-      amountUsd = amountNgn / rate - feeUsd
-    } else {
-      amountUsd = value * coin.price
-      amountNgn = (amountUsd + feeUsd) * rate
+    let paidUsd
+    if (mode === 'ngn') paidUsd = value / rate
+    else paidUsd = paidForValue(value * coin.price, feeTiers)
+    // The fee tier is decided on the amount to the cent, exactly as the server does
+    const feeUsd = buyFeeFor(Math.round(paidUsd * 100) / 100, feeTiers)
+    const valueUsd = Math.max(paidUsd - feeUsd, 0)
+    return {
+      amountNgn: mode === 'ngn' ? value : paidUsd * rate,
+      paidUsd,
+      feeUsd,
+      feeNgn: feeUsd * rate,
+      amountUsd: valueUsd, // dollar value of the crypto
+      valueNgn: valueUsd * rate,
+      cryptoAmount: valueUsd / coin.price,
     }
-    const cryptoAmount = Math.max(amountUsd, 0) / coin.price
-    return { amountNgn, amountUsd, cryptoAmount, feeNgn: feeUsd * rate, tooSmall: amountUsd <= 0 }
-  }, [amount, mode, coin, rate, feeUsd])
+  }, [amount, mode, coin, rate, feeTiers])
 
   const limitError = quote && rates
     ? quote.amountNgn > rates.maxOrderNgn
       ? `Maximum per order is ${formatNaira(rates.maxOrderNgn)} (≈ ${formatUsd(rates.maxOrderUsd)})`
-      : quote.amountNgn < rates.minOrderNgn
-        ? `Minimum order is ${formatNaira(rates.minOrderNgn)}`
-        : quote.tooSmall
-          ? `Amount is too small to cover the $${feeUsd} fee`
-          : null
+      : Math.round(quote.paidUsd * 100) / 100 < minUsd
+        ? `Minimum purchase is ${formatUsd(minUsd)} (${formatNaira(rates.minOrderNgn)})`
+        : null
     : null
 
   const switchMode = () => {
@@ -155,7 +161,7 @@ export default function Trade() {
     setAmount(
       mode === 'ngn'
         ? String(rates.maxOrderNgn)
-        : String(parseFloat((Math.max(rates.maxOrderUsd - feeUsd, 0) / coin.price).toFixed(8)))
+        : String(parseFloat((Math.max(rates.maxOrderUsd - buyFeeFor(rates.maxOrderUsd, feeTiers), 0) / coin.price).toFixed(8)))
     )
   }
 
@@ -436,7 +442,8 @@ export default function Trade() {
 
               {rates && (
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
-                  Limit: {formatNaira(rates.minOrderNgn)} – {formatNaira(rates.maxOrderNgn)} (≈ {formatUsd(rates.maxOrderUsd)})
+                  Min {formatUsd(minUsd)} ({formatNaira(rates.minOrderNgn)}) · max {formatNaira(rates.maxOrderNgn)} (≈ {formatUsd(rates.maxOrderUsd)})
+                  <br />Fee: {describeFeeTiers(feeTiers, formatUsd)}
                 </p>
               )}
 
@@ -508,12 +515,13 @@ export default function Trade() {
                 background: 'var(--bg-secondary)', borderRadius: 10,
                 padding: '14px 16px', margin: '20px 0 16px',
               }}>
-                <SummaryRow label="Rate"         value={rate ? `1 ${coin.symbol} ≈ ${formatNaira(coin.price * rate)}` : '—'} />
-                <SummaryRow label="Dollar value" value={quote ? formatUsd(Math.max(quote.amountUsd, 0)) : '—'} />
-                {feeUsd > 0 && (
-                  <SummaryRow label="Fee" value={`${formatUsd(feeUsd)}${rate ? ` (${formatNaira(feeUsd * rate)})` : ''}`} />
-                )}
-                <SummaryRow label="Network"      value={network?.name || '—'} />
+                <SummaryRow label="Our rate"        value={rate ? `${formatNaira(rate)} / $1` : '—'} />
+                <SummaryRow label={`${coin.symbol} price`} value={rate ? `${formatUsd(coin.price)} · ${formatNaira(coin.price * rate)}` : '—'} />
+                <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
+                <SummaryRow label="Purchase amount" value={quote ? `${formatUsd(quote.paidUsd)} · ${formatNaira(quote.amountNgn)}` : '—'} />
+                <SummaryRow label="Fee"             value={quote ? `−${formatUsd(quote.feeUsd)} · −${formatNaira(quote.feeNgn)}` : '—'} />
+                <SummaryRow label="Crypto value"    value={quote ? `${formatUsd(quote.amountUsd)} · ${formatNaira(quote.valueNgn)}` : '—'} />
+                <SummaryRow label="Network"         value={network?.name || '—'} />
                 <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
                 <SummaryRow strong label="You pay"     value={quote ? formatNaira(quote.amountNgn) : '—'} />
                 <div style={{ height: 6 }} />

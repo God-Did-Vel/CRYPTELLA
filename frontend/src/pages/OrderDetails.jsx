@@ -398,20 +398,21 @@ export default function OrderDetails() {
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Order summary</h3>
               {isSell ? (
                 <>
+                  <Row label="Our rate">{formatNaira(order.ngnPerUsd)} / $1</Row>
+                  <Row label={`${order.symbol} price`}>{formatPrice(order.priceUsd)} · {formatNaira(order.priceUsd * order.ngnPerUsd)}</Row>
                   <Row label="You sell">{formatCrypto(order.cryptoAmount, order.symbol)}</Row>
+                  <Row label="Value">{formatUsd(order.amountUsd)} · {formatNaira(order.amountNgn)}</Row>
                   <Row label="You receive"><span style={{ color: 'var(--green)' }}>{formatNaira(order.amountNgn)}</span></Row>
-                  <Row label="Dollar value">{formatUsd(order.amountUsd)}</Row>
-                  <Row label={`${order.symbol} price`}>{formatPrice(order.priceUsd)}</Row>
-                  <Row label="Rate">{formatNaira(order.ngnPerUsd)} / $1</Row>
                 </>
               ) : (
                 <>
+                  <Row label="Our rate">{formatNaira(order.ngnPerUsd)} / $1</Row>
+                  <Row label={`${order.symbol} price`}>{formatPrice(order.priceUsd)} · {formatNaira(order.priceUsd * order.ngnPerUsd)}</Row>
+                  <Row label="Purchase amount">{formatUsd(order.amountUsd + (order.feeUsd || 0))} · {formatNaira(order.amountNgn)}</Row>
+                  {order.feeUsd > 0 && <Row label="Fee">−{formatUsd(order.feeUsd)} · −{formatNaira(order.feeNgn)}</Row>}
+                  <Row label="Crypto value">{formatUsd(order.amountUsd)} · {formatNaira(order.amountNgn - (order.feeNgn || 0))}</Row>
                   <Row label="You pay">{formatNaira(order.amountNgn)}</Row>
                   <Row label="You receive">{formatCrypto(order.cryptoAmount, order.symbol)}</Row>
-                  <Row label="Dollar value">{formatUsd(order.amountUsd)}</Row>
-                  {order.feeUsd > 0 && <Row label="Fee">{formatUsd(order.feeUsd)} ({formatNaira(order.feeNgn)})</Row>}
-                  <Row label={`${order.symbol} price`}>{formatPrice(order.priceUsd)}</Row>
-                  <Row label="Rate">{formatNaira(order.ngnPerUsd)} / $1</Row>
                 </>
               )}
             </div>

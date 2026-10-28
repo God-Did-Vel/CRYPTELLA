@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../utils/api'
-import { formatNaira, formatDate } from '../utils/format'
+import { formatNaira, formatDate, formatUsd } from '../utils/format'
+import { describeFeeTiers } from '../utils/fees'
 
 const SOURCE_LABEL = { binance: 'Binance P2P', bybit: 'Bybit P2P', quidax: 'Quidax (exchange)', manual: 'Manual' }
 
@@ -87,7 +88,7 @@ export default function AdminRatesCard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
         <Cell label="P2P buy price" value={p2p.buy ? formatNaira(p2p.buy) : '—'} sub="cost of 1 USDT" />
         <Cell label="Customer buy rate" color="var(--green)" value={current.buy ? formatNaira(current.buy) : '—'}
-          sub={`P2P + ${formatNaira(charges.buyChargeNgnPerUsd)} · plus $${charges.buyFeeUsd} fee per order`} />
+          sub={`P2P + ${formatNaira(charges.buyChargeNgnPerUsd)} · fee ${describeFeeTiers(charges.buyFeeTiers, formatUsd)} · min ${formatUsd(charges.buyMinUsd)}`} />
         <Cell label="P2P sell price" value={p2p.sell ? formatNaira(p2p.sell) : '—'} sub="what 1 USDT sells for" />
         <Cell label="Customer sell rate" color="var(--red)" value={current.sell ? formatNaira(current.sell) : '—'}
           sub={`P2P − ${formatNaira(charges.sellChargeNgnPerUsd)}`} />

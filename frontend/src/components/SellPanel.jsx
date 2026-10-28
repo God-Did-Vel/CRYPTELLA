@@ -176,12 +176,15 @@ export default function SellPanel({ coin, rates, isLoggedIn }) {
 
       {/* Summary: the charge is shown on its own line */}
       <div style={{ background: 'var(--bg-secondary)', borderRadius: 10, padding: '14px 16px', margin: '20px 0 16px' }}>
+        <Row label="Our rate" value={sell?.ngnPerUsd ? `${formatNaira(sell.ngnPerUsd)} / $1` : '—'} />
+        <Row label={`${coin.symbol} price`} value={sell?.ngnPerUsd ? `${formatUsd(coin.price)} · ${formatNaira(coin.price * sell.ngnPerUsd)}` : '—'} />
+        <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
         <Row label="You sell" value={quote ? formatCrypto(quote.cryptoAmount, coin.symbol) : '—'} />
-        <Row label="Rate" value={sell?.ngnPerUsd ? `1 ${coin.symbol} ≈ ${formatNaira(coin.price * sell.ngnPerUsd)}` : '—'} />
-        <Row label="Dollar value" value={quote ? formatUsd(quote.usd) : '—'} />
+        <Row label="Value" value={quote ? `${formatUsd(quote.usd)} · ${formatNaira(quote.netNgn)}` : '—'} />
         <Row label="Network" value={network?.name || '—'} />
         <div style={{ height: 1, background: 'var(--border)', margin: '10px 0' }} />
-        <Row strong label="You receive" value={quote ? formatNaira(quote.netNgn) : '—'} />
+        <Row strong label="You receive" value={quote ? `${formatNaira(quote.netNgn)}` : '—'} />
+        {quote && <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>= {formatUsd(quote.usd)} × {formatNaira(sell.ngnPerUsd)}</div>}
       </div>
 
       <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
