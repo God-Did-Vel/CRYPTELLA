@@ -17,7 +17,7 @@
  */
 const { MarketSnapshot } = require('../models');
 const { LISTED_COIN_IDS, getNetworksForCoin } = require('../config/coins');
-const { BUY_CHARGE_NGN_PER_USD, BUY_FEE_USD, SELL_CHARGE_NGN_PER_USD } = require('../config/orders');
+const { BUY_CHARGE_NGN_PER_USD, SELL_CHARGE_NGN_PER_USD } = require('../config/orders');
 const { getP2PRates, getCustomerRates } = require('./p2pService');
 const { SELLABLE_COIN_IDS, getSellNetworks } = require('../config/sell');
 
@@ -256,7 +256,8 @@ const getFxStatus = () => {
     available: rates.available,
     ngnPerUsd: rates.buy, // customer buy rate
     sellNgnPerUsd: rates.sell, // customer sell rate
-    buyFeeUsd: rates.buyFeeUsd,
+    buyFeeTiers: rates.buyFeeTiers,
+    buyMinUsd: rates.buyMinUsd,
     source: rates.p2p.source,
     updatedAt: rates.p2p.updatedAt,
   };
@@ -287,7 +288,6 @@ const getBuyQuote = (coinId) => {
     ngnPerUsd: p2p.buy + BUY_CHARGE_NGN_PER_USD,
     baseNgnPerUsd: p2p.buy,
     chargePerUsd: BUY_CHARGE_NGN_PER_USD,
-    feeUsd: BUY_FEE_USD,
     rateSource: p2p.source,
   };
 };

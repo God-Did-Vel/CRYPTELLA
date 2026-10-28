@@ -14,24 +14,28 @@
  * rates at any time (Admin → Overview → Naira rates).
  *
  * Customer rates:
- *   buy  = P2P buy price  + BUY_CHARGE_NGN_PER_USD  (plus BUY_FEE_USD per order)
+ *   buy  = P2P buy price  + BUY_CHARGE_NGN_PER_USD  (plus a fee by size, BUY_FEE_TIERS)
  *   sell = P2P sell price − SELL_CHARGE_NGN_PER_USD
  */
 const { NairaRate } = require('../models');
 const {
   BUY_CHARGE_NGN_PER_USD,
-  BUY_FEE_USD,
+  BUY_MIN_USD,
+  BUY_FEE_TIERS,
   SELL_CHARGE_NGN_PER_USD,
   P2P_SOURCES,
   P2P_REFRESH_SECONDS,
   P2P_MAX_AGE_MINUTES,
 } = require('../config/orders');
+const crypto = require('node:crypto');
+
+const BYBIT_API_KEY = process.env.BYBIT_P2P_API_KEY;
+const BYBIT_API_SECRET = process.env.BYBIT_SECRET_KEY;
 
 const REQUEST_TIMEOUT = 15 * 1000;
 const REFRESH_INTERVAL = P2P_REFRESH_SECONDS * 1000;
 const MAX_AGE = P2P_MAX_AGE_MINUTES * 60 * 1000;
 const MAX_BACKOFF = 15 * 60 * 1000;
-const TOP_ADS = 5; // median of the best N qualifying adverts
 
 // Sanity limits: reject obviously broken data instead of pricing orders on it
 const MIN_SANE_NGN = 300;
@@ -56,63 +60,128 @@ const postJson = async (url, body) => {
   return res.json();
 };
 
-// ---------------------------------------------------------------------------
-// Providers: each returns { buy, sell, sampleSize }
-// ---------------------------------------------------------------------------
 
 const providers = {
-  async binance() {
-    // tradeType is from the visitor's point of view: BUY lists adverts selling USDT
-    const side = async (tradeType) => {
-      const data = await postJson('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', {
-        asset: 'USDT', fiat: 'NGN', tradeType, page: 1, rows: 20, payTypes: [], publisherType: null,
-      });
-      if (data?.code !== '000000' || !Array.isArray(data.data)) throw new Error(`unexpected response (${data?.code || 'no code'})`);
-      const prices = data.data
-        .filter((a) => (a.advertiser?.monthOrderCount || 0) >= 50 && (a.advertiser?.monthFinishRate || 0) >= 0.9)
-        .map((a) => parseFloat(a.adv?.price))
-        .filter(Number.isFinite)
-        .slice(0, TOP_ADS);
-      if (prices.length < 3) throw new Error(`only ${prices.length} qualifying ${tradeType} adverts`);
-      return prices;
-    };
-    const [buyPrices, sellPrices] = await Promise.all([side('BUY'), side('SELL')]);
-    return { buy: median(buyPrices), sell: median(sellPrices), sampleSize: buyPrices.length + sellPrices.length };
-  },
-
   async bybit() {
-    // side '1' = visitor buys (adverts selling USDT), '0' = visitor sells
-    const side = async (s) => {
-      const data = await postJson('https://api2.bybit.com/fiat/otc/item/online', {
-        userId: '', tokenId: 'USDT', currencyId: 'NGN', payment: [], side: s, size: '20', page: '1', amount: '', authMaker: false, canTrade: false,
-      });
-      if (data?.ret_code !== 0 || !Array.isArray(data.result?.items)) throw new Error(`unexpected response (${data?.ret_code ?? 'no code'})`);
-      const prices = data.result.items
-        .filter((a) => (a.recentOrderNum || 0) >= 50 && (a.recentExecuteRate || 0) >= 90)
-        .map((a) => parseFloat(a.price))
-        .filter(Number.isFinite)
-        .slice(0, TOP_ADS);
-      if (prices.length < 3) throw new Error(`only ${prices.length} qualifying side=${s} adverts`);
-      return prices;
-    };
-    const [buyPrices, sellPrices] = await Promise.all([side('1'), side('0')]);
-    return { buy: median(buyPrices), sell: median(sellPrices), sampleSize: buyPrices.length + sellPrices.length };
-  },
+    if (!BYBIT_API_KEY || !BYBIT_API_SECRET) {
+    throw new Error('Missing Bybit API credentials');
+    }
 
-  // Fallback: Quidax (Nigerian exchange) USDT/NGN order book — an exchange
-  // price rather than P2P adverts, but reachable where P2P sites are blocked.
-  async quidax() {
-    const res = await fetch('https://app.quidax.io/api/v1/markets/tickers/usdtngn', {
-      headers: { Accept: 'application/json', 'User-Agent': HEADERS['User-Agent'] },
+    const getAds = async (side) => {
+      const timestamp = Date.now().toString();
+      const recvWindow = '5000';
+
+      const body = JSON.stringify({
+      tokenId: 'USDT',
+      currencyId: 'NGN',
+      side: String(side),
+      });
+
+      const signaturePayload =
+      timestamp + BYBIT_API_KEY + recvWindow + body;
+
+      const signature = crypto
+      .createHmac('sha256', BYBIT_API_SECRET)
+      .update(signaturePayload)
+      .digest('hex');
+
+      const response = await fetch(
+      'https://api.bybit.com/v5/p2p/item/online',
+      {
+      method: 'POST',
+      headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-BAPI-API-KEY': BYBIT_API_KEY,
+      'X-BAPI-SIGN': signature,
+      'X-BAPI-SIGN-TYPE': '2',
+      'X-BAPI-TIMESTAMP': timestamp,
+      'X-BAPI-RECV-WINDOW': recvWindow,
+      },
+      body,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const ticker = (await res.json())?.data?.ticker;
-    // ticker.sell = best ask (cost to buy USDT), ticker.buy = best bid (what a seller gets)
-    const buy = parseFloat(ticker?.sell);
-    const sell = parseFloat(ticker?.buy);
-    if (!Number.isFinite(buy) || !Number.isFinite(sell)) throw new Error('unexpected response');
-    return { buy, sell, sampleSize: 1 };
+      }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`
+          Bybit API error  ${
+          data.retMsg || response.statusText
+          }`
+        );
+      }
+      if (data.ret_code !== undefined && data.ret_code !== 0) {
+        throw new Error(`Bybit error: ${JSON.stringify(data)}`);
+      }
+
+      if (!Array.isArray(data.result?.items) ||
+        data.result.items.length === 0) {
+        throw new Error(`No Bybit adverts returned for side=${side}`);
+      }
+
+      // Temporary: choose one random advert.
+      // Later, replace this with your best-price selection logic.
+      
+      const advert =
+        data.result.items[
+        Math.floor(Math.random() * data.result.items.length)
+      ];
+      const items = data.result?.items;
+    
+      if (!Array.isArray(items)) {
+        throw new Error(`Unexpected Bybit response: ${JSON.stringify(data)}`);
+      }
+    
+      const verifiedAds = items.filter((ad) =>
+        Array.isArray(ad.authTag) &&
+        ad.authTag.includes('VA') &&
+        Number.isFinite(Number(ad.price)) &&
+        Number(ad.price) > 0
+      );
+    
+      if (verifiedAds.length === 0) {
+        throw new Error(`No verified advertisers found for side ${side}`);
+      }
+    
+      const average =
+        verifiedAds.reduce((sum, ad) => sum + Number(ad.price), 0) /
+        verifiedAds.length;
+    
+      const price = Number(advert.price);
+      console.log(side === 0 ? `Buy price ${price}`: `Sell price ${price}`);
+
+      if (!Number.isFinite(price) || price <= 0) {
+      throw new Error(`Invalid advert price for side=${side}`);
+      }
+
+      return {
+      price,
+      advert,
+      average,
+      count: verifiedAds.length,
+      prices: verifiedAds.map((ad) => Number(ad.price)),
+      };
+    };
+
+    const [buyAdvert, sellAdvert] = await Promise.all([
+      getAds(0),
+      getAds(1),
+    ]);
+  
+    console.log('Verified Bybit P2P prices (USDT/NGN)');
+    console.log('-------------------------------------');
+    console.log(`Average buy price:  ₦${buyAdvert.average.toFixed(2)}`);
+    console.log(`Average sell price: ₦${sellAdvert.average.toFixed(2)}`);
+    console.log(`Verified buy ads:   ${buyAdvert.count}`);
+    console.log(`Verified sell ads:  ${sellAdvert.count}`);
+
+    return {
+    buy: buyAdvert.price,
+    sell: sellAdvert.price,
+    sampleSize: 2,
+    };
   },
 };
 
@@ -225,12 +294,13 @@ const getP2PRates = () => {
 /** Customer-facing naira rates (our charges included), or nulls when unavailable. */
 const getCustomerRates = () => {
   const p2p = getP2PRates();
-  if (!p2p.available) return { available: false, buy: null, sell: null, buyFeeUsd: BUY_FEE_USD, p2p };
+  if (!p2p.available) return { available: false, buy: null, sell: null, buyFeeTiers: BUY_FEE_TIERS, buyMinUsd: BUY_MIN_USD, p2p };
   return {
     available: true,
     buy: p2p.buy + BUY_CHARGE_NGN_PER_USD,
     sell: p2p.sell - SELL_CHARGE_NGN_PER_USD,
-    buyFeeUsd: BUY_FEE_USD,
+    buyFeeTiers: BUY_FEE_TIERS,
+    buyMinUsd: BUY_MIN_USD,
     p2p,
   };
 };
@@ -243,7 +313,7 @@ const getAdminRateStatus = () => ({
   manual: state.manual,
   lastError: state.lastError,
   lastErrorAt: state.lastErrorAt ? new Date(state.lastErrorAt).toISOString() : null,
-  charges: { buyChargeNgnPerUsd: BUY_CHARGE_NGN_PER_USD, buyFeeUsd: BUY_FEE_USD, sellChargeNgnPerUsd: SELL_CHARGE_NGN_PER_USD },
+  charges: { buyChargeNgnPerUsd: BUY_CHARGE_NGN_PER_USD, buyFeeTiers: BUY_FEE_TIERS, buyMinUsd: BUY_MIN_USD, sellChargeNgnPerUsd: SELL_CHARGE_NGN_PER_USD },
   sources: P2P_SOURCES,
   maxAgeMinutes: P2P_MAX_AGE_MINUTES,
 });

@@ -7,10 +7,12 @@ const { Order, Receipt, User } = require('../models');
 const { getBuyQuote, getSellQuote, PricesUnavailableError } = require('../services/coinService');
 const { getDepositAddress } = require('../config/sell');
 const { createPaymentAccount, PaymentSetupError } = require('../services/paymentAccountService');
+const { splitPaidUsd } = require('../services/feeService');
 const { validateDestination } = require('../config/coins');
 const {
   MIN_ORDER_NGN,
   MAX_ORDER_NGN,
+  BUY_MIN_USD,
   PAYMENT_WINDOW_MINUTES,
   SELL_DEPOSIT_WINDOW_MINUTES,
   MAX_OPEN_UNPAID_ORDERS,
@@ -85,12 +87,11 @@ router.post(
 
     try {
       const amountNgn = round(req.body.amountNgn, 2);
-      if (amountNgn < MIN_ORDER_NGN) throw new OrderError(`The minimum order is ${formatNgn(MIN_ORDER_NGN)}.`);
       if (amountNgn > MAX_ORDER_NGN) throw new OrderError(`The maximum per order is ${formatNgn(MAX_ORDER_NGN)}.`);
 
       const quote = getBuyQuote(req.body.coinId);
       if (!quote) throw new OrderError('This coin is not available to buy.', 404);
-      const { coin, ngnPerUsd, baseNgnPerUsd, chargePerUsd, feeUsd, rateSource } = quote;
+      const { coin, ngnPerUsd, baseNgnPerUsd, chargePerUsd, rateSource } = quote;
 
       let destination;
       try {
@@ -108,14 +109,21 @@ router.post(
         );
       }
 
-      // The flat fee comes off the dollar value the customer pays for
+      // Purchase amount in USD at our rate. The minimum and fee tier use it to
+      // the cent (matching what the customer saw); the crypto uses the exact value.
       const grossUsd = amountNgn / ngnPerUsd;
+      const centsUsd = round(grossUsd, 2);
+      if (centsUsd < BUY_MIN_USD) {
+        throw new OrderError(`The minimum purchase is $${BUY_MIN_USD} (${formatNgn(Math.ceil(BUY_MIN_USD * ngnPerUsd))}).`);
+      }
+      const { feeUsd } = splitPaidUsd(centsUsd);
       const netUsd = grossUsd - feeUsd;
-      if (netUsd <= 0) throw new OrderError(`Amount is too small to cover the $${feeUsd} fee.`);
       const amountUsd = round(netUsd, 2);
       const cryptoAmount = round(netUsd / coin.price, 8);
       const feeNgn = round(feeUsd * ngnPerUsd, 2);
-      const chargeNgn = round(grossUsd * chargePerUsd + feeNgn, 2);
+      // Our margin vs the P2P cost of the crypto we deliver:
+      // paid (gross × rate) − crypto (gross − fee) × P2P price = gross × charge + fee × P2P price
+      const chargeNgn = round(grossUsd * chargePerUsd + feeUsd * baseNgnPerUsd, 2);
       if (cryptoAmount <= 0) throw new OrderError('Amount is too small.');
 
       // Retry on the (very unlikely) chance of a duplicate reference

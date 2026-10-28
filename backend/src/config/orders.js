@@ -6,6 +6,18 @@ const num = (name, fallback) => {
   return Number.isFinite(v) ? v : fallback;
 };
 
+// "0:2,200:2.5,300:3" → [{ fromUsd: 0, feeUsd: 2 }, …] sorted by threshold
+const parseTiers = (spec) => {
+  const tiers = spec.split(',').map((pair) => {
+    const [fromUsd, feeUsd] = pair.split(':').map((v) => parseFloat(v));
+    if (!Number.isFinite(fromUsd) || !Number.isFinite(feeUsd) || fromUsd < 0 || feeUsd < 0) {
+      throw new Error(`Invalid BUY_FEE_TIERS entry "${pair}" (expected from:fee, e.g. 200:2.5)`);
+    }
+    return { fromUsd, feeUsd };
+  });
+  return tiers.sort((a, b) => a.fromUsd - b.fromUsd);
+};
+
 module.exports = {
   // Per-order limits in naira
   MIN_ORDER_NGN: num('MIN_ORDER_NGN', 5000),
@@ -18,16 +30,19 @@ module.exports = {
   MAX_OPEN_UNPAID_ORDERS: num('MAX_OPEN_UNPAID_ORDERS', 3),
 
   // ---- Naira pricing (based on USDT/NGN P2P prices, see services/p2pService.js)
-  // Buying:  customer rate = P2P buy price + BUY_CHARGE_NGN_PER_USD, plus a flat
-  //          BUY_FEE_USD per order (e.g. P2P ₦1,650 + ₦20 = ₦1,670 per $1, then $2 fee)
+  // Buying:  customer rate = P2P buy price + BUY_CHARGE_NGN_PER_USD (e.g. ₦1,650 + ₦7 = ₦1,657 per $1),
+  //          minus a fee by purchase amount (BUY_FEE_TIERS), with a BUY_MIN_USD minimum
   // Selling: customer rate = P2P sell price − SELL_CHARGE_NGN_PER_USD
-  BUY_CHARGE_NGN_PER_USD: num('BUY_CHARGE_NGN_PER_USD', 20),
-  BUY_FEE_USD: num('BUY_FEE_USD', 2),
+  BUY_CHARGE_NGN_PER_USD: num('BUY_CHARGE_NGN_PER_USD', 7),
+  BUY_MIN_USD: num('BUY_MIN_USD', 5),
+  // "from:fee" pairs in USD, by the purchase amount (what the customer pays, in $):
+  // $5–$199.99 → $2, $200–$299.99 → $2.50, $300+ → $3 (see services/feeService.js)
+  BUY_FEE_TIERS: parseTiers(process.env.BUY_FEE_TIERS),
   SELL_CHARGE_NGN_PER_USD: num('SELL_CHARGE_NGN_PER_USD', 30),
 
   // P2P price feed: sources tried in order, refresh interval, and how old a
   // price may be before orders are paused
-  P2P_SOURCES: (process.env.P2P_SOURCES || 'binance,bybit,quidax').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+  P2P_SOURCES: (process.env.P2P_SOURCES || 'bybit').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   P2P_REFRESH_SECONDS: Math.max(num('P2P_REFRESH_SECONDS', 120), 30),
   P2P_MAX_AGE_MINUTES: num('P2P_MAX_AGE_MINUTES', 15),
 

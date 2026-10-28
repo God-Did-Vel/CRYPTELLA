@@ -13,11 +13,12 @@ router.get('/', (req, res) => {
     success: true,
     data: {
       ...fx,
-      minOrderNgn: MIN_ORDER_NGN,
+      // Buying: minimum purchase in dollars, and what that costs in naira at our rate
+      minOrderUsd: fx.buyMinUsd,
+      minOrderNgn: fx.ngnPerUsd ? Math.ceil(fx.buyMinUsd * fx.ngnPerUsd) : null,
       maxOrderNgn: MAX_ORDER_NGN,
-      minOrderUsd: toUsd(MIN_ORDER_NGN),
       maxOrderUsd: toUsd(MAX_ORDER_NGN),
-      buyFeeNgn: fx.ngnPerUsd ? parseFloat((fx.buyFeeUsd * fx.ngnPerUsd).toFixed(2)) : null,
+      buyFeeTiers: fx.buyFeeTiers,
       paymentWindowMinutes: PAYMENT_WINDOW_MINUTES,
       sell: {
         ngnPerUsd: sellNgnPerUsd,
