@@ -3,4 +3,5 @@ module.exports = {
   Order: require('./Order'),
   Receipt: require('./Receipt'),
   MarketSnapshot: require('./MarketSnapshot'),
+  NairaRate: require('./NairaRate'),
 };

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import api from '../utils/api'
 import { formatNaira, formatUsd, formatCrypto, formatDate } from '../utils/format'
 import { useRates } from '../hooks/useRates'
+import AdminRatesCard from '../components/AdminRatesCard'
 
 const Stat = ({ icon, label, value, sub, color, to }) => {
   const body = (
@@ -53,6 +54,8 @@ export default function AdminOverview() {
       </div>
 
       <div className="container" style={{ padding: '28px 24px 48px' }}>
+        <AdminRatesCard />
+
         <h2 className="admin-section">Needs attention</h2>
         <div className="stat-grid">
           <Stat to="/admin/orders?status=under_review" icon={<Hourglass size={20} />} color="#60A5FA" label="To review (receipts & deposits)" value={v(o.under_review)} />

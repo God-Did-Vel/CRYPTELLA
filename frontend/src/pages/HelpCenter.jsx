@@ -68,7 +68,7 @@ const FAQS = [
   {
     category: 'coins',
     q: 'Which cryptocurrencies and networks are supported?',
-    a: 'Kryptella supports over 20 top cryptocurrencies including Bitcoin (BTC native), Ethereum (ERC-20, Arbitrum, Optimism), Tether (USDT on TRC-20, BEP-20, ERC-20), Solana (SOL native), Binance Coin (BNB), Ripple (XRP), Cardano (ADA), Dogecoin, and more.',
+    a: 'Kryptella supports 8 coins for buying and selling: Bitcoin (BTC), Ethereum (ERC-20, Arbitrum, Base), Tether (USDT on TRC-20, ERC-20, BEP-20, Solana), BNB (BEP-20), XRP, USD Coin (USDC on ERC-20, BEP-20, Solana, Base, Arbitrum), Solana (SOL) and TRON (TRX).',
   },
   {
     category: 'coins',

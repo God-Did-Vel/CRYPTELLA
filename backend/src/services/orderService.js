@@ -67,7 +67,7 @@ const detectReceiptType = (buf) => {
 };
 
 // Internal pricing fields (our charge) are only shown to admins
-const INTERNAL_FIELDS = ['baseNgnPerUsd', 'chargePerUsd', 'chargeNgn', 'grossNgn', 'reviewedBy'];
+const INTERNAL_FIELDS = ['baseNgnPerUsd', 'chargePerUsd', 'chargeNgn', 'grossNgn', 'rateSource', 'reviewedBy'];
 
 /** An order as customers see it: our rate only, without the market rate or our charge. */
 const customerView = (order) => {

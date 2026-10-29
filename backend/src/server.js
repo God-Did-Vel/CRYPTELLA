@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const { seedAccounts } = require('./seed/demo');
 const { startPriceFeed } = require('./services/coinService');
+const { startP2PFeed } = require('./services/p2pService');
 const { startExpiryJob } = require('./services/orderService');
 const { checkPaymentConfig } = require('./services/paymentAccountService');
 
@@ -94,6 +95,7 @@ const start = async () => {
     await connectDB();
     await seedAccounts();
     await startPriceFeed();
+    await startP2PFeed();
     startExpiryJob();
     app.listen(PORT, () => {
       console.log(`🚀 Cryptella API running on http://localhost:${PORT}`);

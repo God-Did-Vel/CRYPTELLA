@@ -560,7 +560,7 @@ export default function Home() {
                   maxWidth: 540,
                 }}
               >
-                Buy Bitcoin, USDT, Solana, and 20+ top altcoins with simple bank transfer.
+                Buy and sell Bitcoin, Ethereum, USDT, Solana and more with a simple bank transfer.
                 Funds settle straight into your private crypto address without custodial delays.
               </p>
 
@@ -643,7 +643,7 @@ export default function Home() {
               width: '100%',
             }}
           >
-            <StatBox value="20+ Coins" label="Direct Settlement" sub="BTC, ETH, SOL, USDT & more" />
+            <StatBox value="8 Top Coins" label="Direct Settlement" sub="BTC, ETH, USDT, BNB, XRP, USDC, SOL, TRX" />
             <StatBox value="0% Hidden Fees" label="Transparent Spread" sub="Direct wholesale rates" />
             <StatBox value="< 3 Minutes" label="Dispatch Speed" sub="Average confirmation time" />
             <StatBox value="100% Non-Custodial" label="Your Keys, Your Coins" sub="Direct to personal address" />
@@ -690,7 +690,7 @@ export default function Home() {
               </p>
             </div>
             <Link to="/markets" className="btn btn-glass-secondary">
-              <span>View All 20+ Markets</span>
+              <span>View All Markets</span>
               <ArrowRight size={16} />
             </Link>
           </div>
@@ -1027,10 +1027,10 @@ export default function Home() {
                 <TrendingUp size={26} />
               </div>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: '#FFFFFF', marginBottom: 10 }}>
-                20+ Premier Altcoins
+                8 Top Coins
               </h3>
               <p style={{ fontSize: 14, color: '#94A3B8', lineHeight: 1.65, flexGrow: 1, margin: 0 }}>
-                Deep institutional liquidity across Bitcoin, Ethereum, Solana, USDT, BNB, Avalanche, and all leading layer-1 and layer-2 assets.
+                Bitcoin, Ethereum, USDT, BNB, XRP, USDC, Solana and TRON: the most traded coins, priced from live naira P2P rates.
               </p>
               <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6, color: '#34D399', fontSize: 12, fontWeight: 700 }}>
                 <span>Deep Liquidity Pool</span>

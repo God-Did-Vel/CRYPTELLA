@@ -27,10 +27,8 @@ const DEPOSIT_ADDRESSES = {
   },
   solana: { SOL: 'REPLACE_WITH_SOL_ADDRESS' },
   ripple: { XRP: 'REPLACE_WITH_XRP_ADDRESS' }, // each order gets its own destination tag
-  sui: { SUI: 'REPLACE_WITH_SUI_ADDRESS' },
   binancecoin: { BEP20: 'REPLACE_WITH_BNB_BEP20_ADDRESS' },
   tron: { TRC20: 'REPLACE_WITH_TRX_ADDRESS' },
-  litecoin: { LTC: 'REPLACE_WITH_LTC_ADDRESS' },
 };
 
 const SELLABLE_COIN_IDS = Object.keys(DEPOSIT_ADDRESSES);

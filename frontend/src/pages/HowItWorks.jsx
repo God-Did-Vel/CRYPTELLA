@@ -155,7 +155,7 @@ export default function HowItWorks() {
                   Select Coin & Amount
                 </h3>
                 <p style={{ fontSize: 14, color: '#94A3B8', lineHeight: 1.65 }}>
-                  Choose Bitcoin, Ethereum, Solana, USDT, or 20+ other assets. Enter your purchase amount in Naira and provide your personal destination address (Ledger, Trust Wallet, etc.).
+                  Choose Bitcoin, Ethereum, USDT, BNB, XRP, USDC, Solana or TRON. Enter your purchase amount in Naira and provide your personal destination address (Ledger, Trust Wallet, etc.).
                 </p>
               </div>
 

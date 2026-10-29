@@ -57,7 +57,10 @@ const orderSchema = new mongoose.Schema(
     ngnPerUsd: { type: Number, required: true }, // customer rate: buy = dollar value + charge, sell = dollar value − charge
     baseNgnPerUsd: Number, // dollar value in naira before our charge
     chargePerUsd: Number, // our charge per dollar (₦)
-    chargeNgn: Number, // our total charge on this order (₦)
+    chargeNgn: Number, // our total charge on this order (₦), incl. any fee
+    feeUsd: { type: Number, default: 0 }, // buy: flat fee deducted from the crypto value
+    feeNgn: { type: Number, default: 0 },
+    rateSource: String, // where the P2P base price came from: binance | bybit | manual
     amountUsd: { type: Number, required: true },
     priceUsd: { type: Number, required: true },
     cryptoAmount: { type: Number, required: true },

@@ -7,10 +7,12 @@ const { Order, Receipt, User } = require('../models');
 const { getBuyQuote, getSellQuote, PricesUnavailableError } = require('../services/coinService');
 const { getDepositAddress } = require('../config/sell');
 const { createPaymentAccount, PaymentSetupError } = require('../services/paymentAccountService');
+const { splitPaidUsd } = require('../services/feeService');
 const { validateDestination } = require('../config/coins');
 const {
   MIN_ORDER_NGN,
   MAX_ORDER_NGN,
+  BUY_MIN_USD,
   PAYMENT_WINDOW_MINUTES,
   SELL_DEPOSIT_WINDOW_MINUTES,
   MAX_OPEN_UNPAID_ORDERS,
@@ -85,12 +87,11 @@ router.post(
 
     try {
       const amountNgn = round(req.body.amountNgn, 2);
-      if (amountNgn < MIN_ORDER_NGN) throw new OrderError(`The minimum order is ${formatNgn(MIN_ORDER_NGN)}.`);
       if (amountNgn > MAX_ORDER_NGN) throw new OrderError(`The maximum per order is ${formatNgn(MAX_ORDER_NGN)}.`);
 
       const quote = getBuyQuote(req.body.coinId);
       if (!quote) throw new OrderError('This coin is not available to buy.', 404);
-      const { coin, ngnPerUsd, baseNgnPerUsd, chargePerUsd } = quote;
+      const { coin, ngnPerUsd, baseNgnPerUsd, chargePerUsd, rateSource } = quote;
 
       let destination;
       try {
@@ -108,9 +109,21 @@ router.post(
         );
       }
 
-      const amountUsd = round(amountNgn / ngnPerUsd, 2);
-      const cryptoAmount = round(amountNgn / ngnPerUsd / coin.price, 8);
-      const chargeNgn = round((amountNgn / ngnPerUsd) * chargePerUsd, 2);
+      // Purchase amount in USD at our rate. The minimum and fee tier use it to
+      // the cent (matching what the customer saw); the crypto uses the exact value.
+      const grossUsd = amountNgn / ngnPerUsd;
+      const centsUsd = round(grossUsd, 2);
+      if (centsUsd < BUY_MIN_USD) {
+        throw new OrderError(`The minimum purchase is $${BUY_MIN_USD} (${formatNgn(Math.ceil(BUY_MIN_USD * ngnPerUsd))}).`);
+      }
+      const { feeUsd } = splitPaidUsd(centsUsd);
+      const netUsd = grossUsd - feeUsd;
+      const amountUsd = round(netUsd, 2);
+      const cryptoAmount = round(netUsd / coin.price, 8);
+      const feeNgn = round(feeUsd * ngnPerUsd, 2);
+      // Our margin vs the P2P cost of the crypto we deliver:
+      // paid (gross × rate) − crypto (gross − fee) × P2P price = gross × charge + fee × P2P price
+      const chargeNgn = round(grossUsd * chargePerUsd + feeUsd * baseNgnPerUsd, 2);
       if (cryptoAmount <= 0) throw new OrderError('Amount is too small.');
 
       // Retry on the (very unlikely) chance of a duplicate reference
@@ -134,6 +147,9 @@ router.post(
             baseNgnPerUsd,
             chargePerUsd,
             chargeNgn,
+            feeUsd,
+            feeNgn,
+            rateSource,
             amountUsd,
             priceUsd: coin.price,
             cryptoAmount,
@@ -182,7 +198,7 @@ router.post(
     try {
       const quote = getSellQuote(req.body.coinId);
       if (!quote) throw new OrderError('This coin cannot be sold on Cryptella.', 404);
-      const { coin, baseNgnPerUsd, chargePerUsd, ngnPerUsd } = quote;
+      const { coin, baseNgnPerUsd, chargePerUsd, ngnPerUsd, rateSource } = quote;
 
       const deposit = getDepositAddress(coin.id, req.body.networkId);
       if (!deposit) throw new OrderError(`We don't accept ${coin.symbol} on that network.`, 422);
@@ -238,6 +254,7 @@ router.post(
             grossNgn,
             chargeNgn,
             amountNgn,
+            rateSource,
             expiresAt: new Date(Date.now() + SELL_DEPOSIT_WINDOW_MINUTES * 60 * 1000),
             status: 'awaiting_payment',
             history: [{ status: 'awaiting_payment', note: 'Sell order created' }],

@@ -27,9 +27,9 @@ export default function WhyUs() {
       icon: <TrendingUp size={28} />,
       color: '#34D399',
       glow: 'rgba(20, 241, 149, 0.25)',
-      title: '20+ Premier Altcoins & Deep Liquidity',
+      title: '8 Top Coins & Deep Liquidity',
       tag: 'Deep Orderbooks',
-      desc: 'Execute trades across Bitcoin, Ethereum, Solana, USDT, BNB, Avalanche, and top DeFi tokens with zero slippage even on large volume orders.',
+      desc: 'Buy and sell Bitcoin, Ethereum, USDT, BNB, XRP, USDC, Solana and TRON at rates based on live naira P2P prices.',
     },
     {
       icon: <RefreshCw size={28} />,

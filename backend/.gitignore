@@ -14,7 +14,9 @@
 
 # production
 /build
-
+test.py
+test.js
+test2.js
 # misc
 .DS_Store
 *.pem
