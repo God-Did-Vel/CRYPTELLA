@@ -36,7 +36,6 @@ module.exports = {
   BUY_CHARGE_NGN_PER_USD: num('BUY_CHARGE_NGN_PER_USD', 7),
   BUY_MIN_USD: num('BUY_MIN_USD', 5),
   // "from:fee" pairs in USD, by the purchase amount (what the customer pays, in $):
-  // $5–$199.99 → $2, $200–$299.99 → $2.50, $300+ → $3 (see services/feeService.js)
   BUY_FEE_TIERS: parseTiers(process.env.BUY_FEE_TIERS),
   SELL_CHARGE_NGN_PER_USD: num('SELL_CHARGE_NGN_PER_USD', 30),
 
