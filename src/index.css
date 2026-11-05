@@ -145,6 +145,16 @@ input, select, textarea { font-family: inherit; }
 .ticker-inner { display: flex; animation: ticker 40s linear infinite; width: max-content; }
 .ticker-inner:hover { animation-play-state: paused; }
 
+
+/* Spin animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin, .animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 /* Fade in */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 .fade-in { animation: fadeIn 0.4s ease forwards; }
@@ -272,7 +282,6 @@ input, select, textarea { font-family: inherit; }
   box-shadow: 0 10px 32px rgba(245, 158, 11, 0.55);
 }
 
-/* Glass Cards & Panels */
 .card-glass {
   background: var(--glass-bg-card);
   backdrop-filter: blur(16px);
@@ -282,6 +291,8 @@ input, select, textarea { font-family: inherit; }
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 .card-glass::before {
   content: '';
@@ -406,3 +417,191 @@ input, select, textarea { font-family: inherit; }
   animation-play-state: paused;
 }
 
+
+
+/* =============================================================
+   RESPONSIVE — mobile-first breakpoints
+   All layout rules live here so component files stay clean.
+   ============================================================= */
+
+/* ── Shared font stack (no external requests) ──────────────── */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+}
+
+/* ── Container padding shrinks on small screens ────────────── */
+@media (max-width: 640px) {
+  .container,
+  .container-wide {
+    padding: 0 16px;
+  }
+}
+
+/* ── Navbar ─────────────────────────────────────────────────── */
+@media (max-width: 880px) {
+  .nav-links        { display: none !important; }
+  .nav-auth-desktop { display: none !important; }
+  .hamburger        { display: block !important; }
+  .hamburger-btn    { display: flex !important; }
+}
+
+/* ── Hero / Home ────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hero-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .hero-stats {
+    gap: 20px !important;
+  }
+  .hero-stats .divider-v { display: none; }
+}
+
+/* ── Section grids ──────────────────────────────────────────── */
+/* Feature cards — 1 col on phones */
+@media (max-width: 500px) {
+  .features-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Coin card grid on Home page — 1 col on phones */
+@media (max-width: 500px) {
+  .coin-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Markets page ───────────────────────────────────────────── */
+/* Hide table, show card list on mobile (class toggling is in Markets.jsx) */
+@media (max-width: 640px) {
+  .markets-table-wrap { display: none !important; }
+  .markets-cards      { display: block !important; }
+}
+
+/* ── Trade page ─────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .trade-grid  { grid-template-columns: 1fr !important; }
+  .trade-panel { position: static !important; }
+}
+
+/* ── Dashboard / Portfolio grids ────────────────────────────── */
+/* Two-column section → single column on tablets and below */
+@media (max-width: 860px) {
+  .dash-two-col {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Stat cards — tighten on phones */
+@media (max-width: 480px) {
+  .stat-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+  }
+}
+
+/* ── Auth pages ─────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* Register name row → stack vertically */
+  .name-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Cards ──────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .card { padding: 18px 16px; }
+}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+/* Large CTA buttons take full width on very small screens */
+@media (max-width: 400px) {
+  .btn-lg { padding: 13px 20px; font-size: 14px; }
+}
+
+/* ── Footer ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 28px !important;
+  }
+  .footer-bottom {
+    flex-direction: column !important;
+    text-align: center;
+    gap: 8px !important;
+  }
+}
+@media (max-width: 380px) {
+  .footer-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Ticker tape ─────────────────────────────────────────────── */
+/* Slow down on phones so it's readable */
+@media (max-width: 480px) {
+  .ticker-inner { animation-duration: 60s; }
+}
+
+/* ── Quick-buy chips on Dashboard ───────────────────────────── */
+@media (max-width: 480px) {
+  .quick-buy-row {
+    gap: 8px !important;
+  }
+  .quick-buy-row a {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
+
+/* ── Portfolio table → card list on mobile ───────────────────── */
+@media (max-width: 680px) {
+  .portfolio-table     { display: none !important; }
+  .portfolio-cards     { display: block !important; }
+  .portfolio-pie-col   { display: none !important; }
+  .portfolio-main-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Tx history table → cards on mobile ─────────────────────── */
+@media (max-width: 680px) {
+  .tx-table { display: none !important; }
+  .tx-cards { display: block !important; }
+}
+
+/* ── Order detail / admin grids ─────────────────────────────── */
+@media (max-width: 640px) {
+  .admin-grid       { grid-template-columns: 1fr !important; }
+  .order-detail-grid{ grid-template-columns: 1fr !important; }
+}
+
+/* ── Utility: hide / show helpers ───────────────────────────── */
+@media (max-width: 640px) {
+  .hide-mobile  { display: none !important; }
+}
+@media (min-width: 641px) {
+  .show-mobile  { display: none !important; }
+}
+
+/* ── Smooth scrolling on iOS ─────────────────────────────────── */
+html { -webkit-overflow-scrolling: touch; }
+
+/* ── Prevent horizontal overflow on any page ─────────────────── */
+body { overflow-x: hidden; }
+#root { overflow-x: hidden; }
+
+/* Buy / Sell switch */
+.side-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; }
+.side-tab { flex: 1; padding: 10px 0; border: none; border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 15px; font-weight: 700; transition: all 0.15s; }
+.side-tab:hover { color: var(--text-primary); }
+.side-tab-buy { background: var(--green); color: #fff; }
+.side-tab-sell { background: var(--red); color: #fff; }
+.side-tab-buy:hover, .side-tab-sell:hover { color: #fff; }
+
+.type-pill { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; }
+.type-buy { background: var(--green-light); color: var(--green); }
+.type-sell { background: var(--red-light); color: var(--red); }

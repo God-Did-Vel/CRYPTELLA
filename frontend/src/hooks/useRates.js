@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import api from '../utils/api'
 
 // Naira rate + order limits; refreshed every minute
@@ -6,17 +6,22 @@ export const useRates = () => {
   const [rates, setRates] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let active = true
-    const load = () =>
-      api.get('/rates')
-        .then(({ data }) => active && setRates(data.data))
-        .catch(() => {})
-        .finally(() => active && setLoading(false))
-    load()
-    const id = setInterval(load, 60000)
-    return () => { active = false; clearInterval(id) }
+  const load = useCallback(() => {
+    return api
+      .get('/rates')
+      .then(({ data }) => {
+        setRates(data.data)
+        return data.data
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
-  return { rates, loading }
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 60000)
+    return () => clearInterval(id)
+  }, [load])
+
+  return { rates, loading, refetch: load }
 }

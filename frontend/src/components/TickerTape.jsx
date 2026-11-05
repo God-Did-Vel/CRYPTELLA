@@ -1,7 +1,7 @@
 import React from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { formatPrice, formatChange } from '../utils/format'
-import CoinIcon from './CoinIcon'
+import CoinIcon from './CoinIcon'   
 
 const TickerItem = ({ coin }) => {
   const positive = (coin.change24h ?? 0) >= 0

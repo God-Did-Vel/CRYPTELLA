@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
+    "build": "npm --prefix frontend run build && node -e \"const fs = require('fs'); if (fs.existsSync('frontend/dist')) { fs.cpSync('frontend/dist', 'dist', { recursive: true }); }\"",
     "preview": "npm --prefix frontend run preview",
     "start": "npm --prefix frontend run dev",
     "server": "npm --prefix backend run dev"

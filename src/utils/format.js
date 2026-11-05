@@ -29,3 +29,26 @@ export const formatCryptoAmount = (amount, decimals = 6) => {
   if (!amount && amount !== 0) return '—'
   return parseFloat(amount.toFixed(decimals)).toString()
 }
+
+export const formatNaira = (amount, decimals = 2) => {
+  if (amount === undefined || amount === null || isNaN(amount)) return '₦—'
+  // Whole naira stay clean (₦5,000); kobo always shows two digits (₦189,608.70)
+  const n = Number(amount)
+  const hasKobo = decimals > 0 && Math.round(n * 100) % 100 !== 0
+  return `₦${n.toLocaleString('en-NG', { minimumFractionDigits: hasKobo ? 2 : 0, maximumFractionDigits: hasKobo ? decimals : 0 })}`
+}
+
+export const formatUsd = (amount) => {
+  if (amount === undefined || amount === null || isNaN(amount)) return '$—'
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(amount)
+}
+
+// Exact amount (orders store 8 decimals), trailing zeros trimmed
+export const formatCrypto = (amount, symbol = '') => {
+  if (amount === undefined || amount === null || isNaN(amount)) return '—'
+  const s = Number(amount).toLocaleString('en-US', { maximumFractionDigits: 8 })
+  return symbol ? `${s} ${symbol}` : s
+}
+
+export const shortAddress = (addr, start = 8, end = 6) =>
+  !addr || addr.length <= start + end + 3 ? addr : `${addr.slice(0, start)}…${addr.slice(-end)}`

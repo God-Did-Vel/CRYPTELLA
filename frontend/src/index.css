@@ -145,6 +145,16 @@ input, select, textarea { font-family: inherit; }
 .ticker-inner { display: flex; animation: ticker 40s linear infinite; width: max-content; }
 .ticker-inner:hover { animation-play-state: paused; }
 
+
+/* Spin animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin, .animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 /* Fade in */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 .fade-in { animation: fadeIn 0.4s ease forwards; }

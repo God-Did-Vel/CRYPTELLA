@@ -305,10 +305,10 @@ export default function PrivacyPolicy() {
                     Kryptella Data Protection Office
                   </div>
                   <div style={{ fontSize: 14, color: '#94A3B8', marginBottom: 6 }}>
-                    Email: <a href="mailto:privacy@kryptella.com" style={{ color: '#60A5FA' }}>privacy@kryptella.com</a>
+                    Email: <a href="mailto:support@kryptella.com" style={{ color: '#60A5FA' }}>support@kryptella.com</a>
                   </div>
                   <div style={{ fontSize: 14, color: '#94A3B8' }}>
-                    Concierge Desk: <Link to="/contact" style={{ color: '#60A5FA' }}>Contact Us Page</Link>
+                    kryptella Support Desk: <Link to="/contact" style={{ color: '#60A5FA' }}>Contact Us Page</Link>
                   </div>
                 </div>
               </div>

@@ -83,8 +83,8 @@ export default function Footer() {
                 />
               </div>
               <div>
-                <span style={{ fontWeight: 900, fontSize: 21, color: '#FFFFFF', letterSpacing: '-0.5px' }}>
-                  Kryptella
+                <span style={{ fontWeight: 900, fontSize: 21, color: '#FFFFFF', letterSpacing: '-0.5px' }}>     
+KRYPTELLA
                 </span>
                 <span
                   style={{
@@ -107,7 +107,7 @@ export default function Footer() {
               {[
                 { icon: <ShieldCheck size={16} />, title: 'Bank-Grade Security' },
                 { icon: <Zap size={16} />, title: 'Sub-Minute Dispatch' },
-                { icon: <Globe size={16} />, title: '20+ Altcoins Supported' },
+                { icon: <Globe size={16} />, title: '8 Top Coins Supported' },
               ].map((item, i) => (
                 <div
                   key={i}
@@ -138,7 +138,7 @@ export default function Footer() {
             </h4>
             {(isAdmin
               ? [['Overview', '/admin'], ['Manage Orders', '/admin/orders'], ['User Management', '/admin/users'], ['Markets', '/markets']]
-              : [['Live Markets', '/markets'], ['Buy Crypto', '/markets'], ['My Orders', '/orders'], ['Customer Dashboard', '/dashboard']]
+              : [['Live Markets', '/markets'], ['Buy Crypto', '/markets'], ['Sell Crypto', '/markets?side=sell'], ['My Orders', '/orders'], ['Customer Dashboard', '/dashboard']]
             ).map(([l, to]) => (
               <Link
                 key={l}
@@ -172,9 +172,9 @@ export default function Footer() {
               Company
             </h4>
             {[
-              ['About Us', '/#about'],
-              ['How It Works', '/#how-it-works'],
-              ['Why Kryptella', '/#why-us'],
+              ['About Us', '/about'],
+              ['How It Works', '/how-it-works'],
+              ['Why Kryptella', '/why-us'],
             ].map(([l, to]) => (
               <Link
                 key={l}
@@ -203,7 +203,7 @@ export default function Footer() {
           {/* Support (Linked directly to new pages) */}
           <div>
             <h4 style={{ fontWeight: 800, marginBottom: 18, fontSize: 15, color: '#FFFFFF', letterSpacing: '0.02em' }}>
-              Concierge & Legal
+              Kryptella & Legal
             </h4>
             {[
               ['Help Center', '/help'],

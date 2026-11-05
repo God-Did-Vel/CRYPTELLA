@@ -18,7 +18,8 @@ const SortIcon = ({ field, current, dir }) => {
 export default function Markets() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
-  const { rates } = useRates()
+  const { rates, refetch: refetchRates } = useRates()
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const buyRate = rates?.ngnPerUsd
   const sellRate = rates?.sell?.ngnPerUsd
   const { coins: allCoins, loading, error, refetch } = useCoins(30000)
@@ -53,6 +54,25 @@ export default function Markets() {
 
   const gainers = coins.filter(c => (c.change24h ?? 0) >= 0).length
   const losers  = coins.filter(c => (c.change24h ?? 0) < 0).length
+  const handleRefresh = async () => {
+    if (isRefreshing) return
+    setIsRefreshing(true)
+    const startTime = Date.now()
+    try {
+      await Promise.allSettled([
+        refetch(),
+        refetchRates ? refetchRates() : Promise.resolve(),
+      ])
+    } catch (err) {
+      console.error('Failed to refresh market prices:', err)
+    } finally {
+      const elapsed = Date.now() - startTime
+      const delay = Math.max(0, 600 - elapsed)
+      setTimeout(() => {
+        setIsRefreshing(false)
+      }, delay)
+    }
+  }
 
   const ThBtn = ({ label, field }) => (
     <th
@@ -91,8 +111,21 @@ export default function Markets() {
                   : `${coins.length} altcoins • ${gainers} gainers • ${losers} losers`}
               </p>
             </div>
-            <button onClick={refetch} className="btn btn-secondary btn-sm">
-              <RefreshCw size={14} /> Refresh
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="btn btn-secondary btn-sm"
+              style={{ cursor: isRefreshing ? 'wait' : 'pointer' }}
+              title="Refresh current prices"
+            >
+              <RefreshCw
+                size={14}
+                className={isRefreshing ? 'animate-spin' : ''}
+                style={{
+                  animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                }}
+              />{' '}
+              {isRefreshing ? 'Refreshing…' : 'Refresh'}
             </button>
           </div>
 
