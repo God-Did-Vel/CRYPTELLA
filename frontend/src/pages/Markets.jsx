@@ -25,7 +25,8 @@ export default function Markets() {
   const { coins: allCoins, loading, error, refetch } = useCoins(30000)
   const [params] = useSearchParams()
   const sellMode = params.get('side') === 'sell' && !isAdmin
-  const coins = useMemo(() => (sellMode ? allCoins.filter((c) => c.sellable) : allCoins), [allCoins, sellMode])
+  const safeCoins = Array.isArray(allCoins) ? allCoins : []
+  const coins = useMemo(() => (sellMode ? safeCoins.filter((c) => c?.sellable) : safeCoins), [safeCoins, sellMode])
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState('marketCap')
   const [sortDir, setSortDir]     = useState('desc')
@@ -37,23 +38,23 @@ export default function Markets() {
   }
 
   const filtered = useMemo(() => {
-    let list = [...coins]
+    let list = Array.isArray(coins) ? [...coins] : []
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter(c => c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q))
+      list = list.filter(c => c?.name?.toLowerCase().includes(q) || c?.symbol?.toLowerCase().includes(q))
     }
-    if (filter === 'gainers') list = list.filter(c => (c.change24h ?? 0) >= 0)
-    if (filter === 'losers')  list = list.filter(c => (c.change24h ?? 0) < 0)
+    if (filter === 'gainers') list = list.filter(c => (c?.change24h ?? 0) >= 0)
+    if (filter === 'losers')  list = list.filter(c => (c?.change24h ?? 0) < 0)
     list.sort((a, b) => {
-      const av = a[sortField] ?? 0
-      const bv = b[sortField] ?? 0
+      const av = a?.[sortField] ?? 0
+      const bv = b?.[sortField] ?? 0
       return sortDir === 'asc' ? av - bv : bv - av
     })
     return list
   }, [coins, search, sortField, sortDir, filter])
 
-  const gainers = coins.filter(c => (c.change24h ?? 0) >= 0).length
-  const losers  = coins.filter(c => (c.change24h ?? 0) < 0).length
+  const gainers = (coins || []).filter(c => (c?.change24h ?? 0) >= 0).length
+  const losers  = (coins || []).filter(c => (c?.change24h ?? 0) < 0).length
   const handleRefresh = async () => {
     if (isRefreshing) return
     setIsRefreshing(true)

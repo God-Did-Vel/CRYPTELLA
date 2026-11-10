@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 10000,
 })
 
@@ -12,14 +12,16 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Handle 401 globally
+// Handle 401 globally without redirect loops
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('cryptella_token')
       localStorage.removeItem('cryptella_user')
-      window.location.href = '/login'
+      if (typeof window !== 'undefined' && !['/login', '/register'].includes(window.location.pathname)) {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(err)
   }

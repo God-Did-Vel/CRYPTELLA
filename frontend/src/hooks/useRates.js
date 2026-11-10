@@ -10,8 +10,10 @@ export const useRates = () => {
     return api
       .get('/rates')
       .then(({ data }) => {
-        setRates(data.data)
-        return data.data
+        if (data?.data) {
+          setRates(data.data)
+        }
+        return data?.data
       })
       .catch(() => {})
       .finally(() => setLoading(false))

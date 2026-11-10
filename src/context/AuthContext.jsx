@@ -14,10 +14,12 @@ export const AuthProvider = ({ children }) => {
     if (!localStorage.getItem('cryptella_token')) return
     api.get('/user/me')
       .then(({ data }) => {
-        const { id, firstName, lastName, email, role } = data.data
-        const fresh = { id, firstName, lastName, email, role }
-        localStorage.setItem('cryptella_user', JSON.stringify(fresh))
-        setUser(fresh)
+        if (data?.data) {
+          const { id, firstName, lastName, email, role } = data.data
+          const fresh = { id, firstName, lastName, email, role }
+          localStorage.setItem('cryptella_user', JSON.stringify(fresh))
+          setUser(fresh)
+        }
       })
       .catch(() => {})
   }, [])

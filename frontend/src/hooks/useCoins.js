@@ -9,8 +9,12 @@ export const useCoins = (refreshInterval = 30000) => {
   const fetchCoins = useCallback(async () => {
     try {
       const { data } = await api.get('/coins')
-      setCoins(data.data)
-      setError(null)
+      if (Array.isArray(data?.data)) {
+        setCoins(data.data)
+        setError(null)
+      } else {
+        setError('Failed to fetch coin prices')
+      }
     } catch (err) {
       setError('Failed to fetch coin prices')
     } finally {
@@ -24,5 +28,5 @@ export const useCoins = (refreshInterval = 30000) => {
     return () => clearInterval(interval)
   }, [fetchCoins, refreshInterval])
 
-  return { coins, loading, error, refetch: fetchCoins }
+  return { coins: Array.isArray(coins) ? coins : [], loading, error, refetch: fetchCoins }
 }
